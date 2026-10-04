@@ -20,6 +20,7 @@ import Feedback from "./pages/Feedback";
 function App() {
   return (
     <BrowserRouter>
+
       <Routes>
 
         <Route path="/" element={<Login />} />
@@ -36,47 +37,56 @@ function App() {
 
         <Route path="/history" element={<History />} />
 
+        {/* Mood Timeline */}
         <Route
           path="/mood-timeline"
           element={<MoodTimeline />}
         />
 
+        {/* Mood Transition */}
         <Route
-        path="/mood-transition"
-        element={<MoodTransition />}
+          path="/mood-transition"
+          element={<MoodTransition />}
         />
 
+        {/* Confidence */}
         <Route
-         path="/confidence"
-         element={<Confidence />}
-/>
+          path="/confidence"
+          element={<Confidence />}
+        />
 
-<Route
-  path="/multi-mood"
-  element={<MultiMood />}
-/>
+        {/* Multi Mood */}
+        <Route
+          path="/multi-mood"
+          element={<MultiMood />}
+        />
 
-<Route
-  path="/explainable-ai"
-  element={<ExplainableAI />}
-/>
+        {/* Explainable AI */}
+        <Route
+          path="/explainable-ai"
+          element={<ExplainableAI />}
+        />
 
-<Route
-  path="/mood-intensity"
-  element={<MoodIntensity />}
-/>
+        {/* Mood Intensity */}
+        <Route
+          path="/mood-intensity"
+          element={<MoodIntensity />}
+        />
 
-<Route
-  path="/recommendations"
-  element={<Recommendations />}
-/>
+        {/* Recommendations */}
+        <Route
+          path="/recommendations"
+          element={<Recommendations />}
+        />
 
-<Route
-  path="/feedback"
-  element={<Feedback />}
-/>
+        {/* Feedback */}
+        <Route
+          path="/feedback"
+          element={<Feedback />}
+        />
 
       </Routes>
+
     </BrowserRouter>
   );
 }

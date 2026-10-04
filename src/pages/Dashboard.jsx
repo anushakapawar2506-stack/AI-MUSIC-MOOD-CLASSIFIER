@@ -1,32 +1,119 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 function Dashboard() {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem("isLoggedIn");
+    navigate("/login");
+  };
+
+  const features = [
+    {
+      icon: "😊",
+      title: "Mood Detection",
+      description:
+        "Detect the primary emotional mood of your uploaded music.",
+      path: "/mood-result",
+    },
+    {
+      icon: "🎯",
+      title: "Confidence Score",
+      description:
+        "View the AI confidence level for every mood prediction.",
+      path: "/confidence",
+    },
+    {
+      icon: "📈",
+      title: "Mood Timeline",
+      description:
+        "Track how the emotional mood changes throughout the song.",
+      path: "/mood-timeline",
+    },
+    {
+      icon: "🔄",
+      title: "Mood Transition",
+      description:
+        "Understand transitions between different emotional states.",
+      path: "/mood-transition",
+    },
+    {
+      icon: "🎭",
+      title: "Multi-Mood Detection",
+      description:
+        "Discover multiple emotions detected within one music track.",
+      path: "/multi-mood",
+    },
+    {
+      icon: "⚡",
+      title: "Mood Intensity",
+      description:
+        "Measure the intensity level of the detected musical emotion.",
+      path: "/mood-intensity",
+    },
+    {
+      icon: "🧠",
+      title: "Explainable AI",
+      description:
+        "Understand why the AI selected a particular mood.",
+      path: "/explainable-ai",
+    },
+    {
+      icon: "🎧",
+      title: "Recommendations",
+      description:
+        "Explore music recommendations based on the detected mood.",
+      path: "/recommendations",
+    },
+    {
+      icon: "📝",
+      title: "Lyrics Analysis",
+      description:
+        "Analyze lyrics to identify emotional patterns and moods.",
+      path: "/lyrics",
+    },
+  ];
+
   return (
-    <div className="dashboard-page">
+    <div className="pro-dashboard">
 
-      {/* =========================
-          TOP NAVBAR
-      ========================== */}
+      {/* =====================================================
+          NAVBAR
+          ===================================================== */}
 
-      <header className="top-navbar">
+      <nav className="pro-navbar">
 
-        <div className="navbar-logo">
-          🎵
-          <span>
-            AI Music Mood<br />
-            Classifier
+        <Link
+          to="/dashboard"
+          className="pro-brand"
+        >
+          <span className="pro-brand-icon">
+            🎵
           </span>
-        </div>
 
-        <nav className="navbar-links">
+          <span className="pro-brand-text">
+            <strong>
+              AI Music Mood
+            </strong>
 
-          <Link to="/dashboard">
+            <small>
+              Classifier
+            </small>
+          </span>
+        </Link>
+
+
+        <div className="pro-nav-links">
+
+          <Link
+            to="/dashboard"
+            className="active"
+          >
             Dashboard
           </Link>
 
           <Link to="/upload">
-            Upload<br />
-            Music
+            Upload Music
           </Link>
 
           <Link to="/history">
@@ -37,368 +124,238 @@ function Dashboard() {
             Feedback
           </Link>
 
-          <Link to="/">
+          <button
+            type="button"
+            onClick={handleLogout}
+            style={{
+              border: "none",
+              background: "transparent",
+              color: "#6f7486",
+              padding: "9px 13px",
+              borderRadius: "8px",
+              fontSize: "11px",
+              fontWeight: "600",
+              cursor: "pointer",
+            }}
+          >
             Logout
-          </Link>
+          </button>
 
-        </nav>
+        </div>
 
-      </header>
-
-
-      {/* =========================
-          ACTION BUTTONS
-      ========================== */}
-
-      <div className="dashboard-actions">
-
-        <Link
-          to="/mood-timeline"
-          className="dashboard-action-btn"
-        >
-          📈 View
-          <br />
-          Mood Timeline
-        </Link>
-
-        <Link
-          to="/upload"
-          className="dashboard-action-btn"
-        >
-          🎵 Analyze
-          <br />
-          Another Song
-        </Link>
-
-        <Link
-          to="/dashboard"
-          className="dashboard-action-btn active-action"
-        >
-          🏠
-          <br />
-          Dashboard
-        </Link>
-
-        <Link
-          to="/mood-transition"
-          className="dashboard-action-btn"
-        >
-          🔄 View
-          <br />
-          Mood Transition
-        </Link>
-
-        <Link
-          to="/confidence"
-          className="dashboard-action-btn"
-        >
-          📊 View
-          <br />
-          Confidence Graph
-        </Link>
-
-        <Link
-          to="/multi-mood"
-          className="dashboard-action-btn"
-        >
-          🎭 View
-          <br />
-          Multi-Mood
-          <br />
-          Detection
-        </Link>
-
-        <Link
-          to="/explainable-ai"
-          className="dashboard-action-btn"
-        >
-          🧠 View
-          <br />
-          Explainable AI
-        </Link>
-
-        <Link
-          to="/mood-intensity"
-          className="dashboard-action-btn"
-        >
-          🎚️ View
-          <br />
-          Mood Intensity
-        </Link>
-
-        <Link
-          to="/recommendations"
-          className="dashboard-action-btn"
-        >
-          🎵 View Song
-          <br />
-          Recommendations
-        </Link>
-
-        <Link
-          to="/feedback"
-          className="dashboard-action-btn"
-        >
-          💬 Give
-          <br />
-          Feedback
-        </Link>
-
-      </div>
+      </nav>
 
 
-      {/* =========================
-          MAIN DASHBOARD
-      ========================== */}
+      {/* =====================================================
+          MAIN
+          ===================================================== */}
 
-      <main className="dashboard-main">
+      <main className="pro-main">
 
 
-        {/* =========================
-            WELCOME
-        ========================== */}
+        {/* ===================================================
+            HERO
+            =================================================== */}
 
-        <section className="welcome-section">
+        <section className="pro-hero">
 
-          <h1>
-            Welcome to AI Music Mood Classifier 🎵
-          </h1>
+          <div className="pro-hero-content">
 
-          <p>
-            Analyze your music and discover its emotional mood.
-          </p>
+            <div className="pro-hero-badge">
+
+              <span className="pro-status-dot"></span>
+
+              AI SYSTEM ONLINE
+
+            </div>
+
+
+            <h1>
+              Understand the Emotion
+              Behind Music.
+            </h1>
+
+
+            <p>
+              Upload your favorite music and let
+              Artificial Intelligence analyze its
+              emotional characteristics, mood,
+              intensity and musical patterns.
+            </p>
+
+
+            <Link
+              to="/upload"
+              className="pro-hero-button"
+            >
+              🎵 Analyze Your Music
+              <span>→</span>
+            </Link>
+
+          </div>
 
         </section>
 
 
-        {/* =========================
-            ANALYZE MUSIC
-        ========================== */}
+        {/* ===================================================
+            QUICK ANALYSIS
+            =================================================== */}
 
-        <section className="analyze-card">
+        <section className="pro-quick-section">
 
-          <div className="analyze-icon">
-            🎧
+          <div className="pro-quick-card">
+
+            <div className="pro-quick-icon">
+              🎧
+            </div>
+
+
+            <div className="pro-quick-content">
+
+              <span>
+                QUICK ANALYSIS
+              </span>
+
+              <h3>
+                Ready to analyze a new song?
+              </h3>
+
+              <p>
+                Upload an MP3, WAV, OGG or M4A
+                audio file to start AI analysis.
+              </p>
+
+            </div>
+
+
+            <Link
+              to="/upload"
+              className="pro-quick-button"
+            >
+              Upload Music
+            </Link>
+
           </div>
 
-          <div className="analyze-content">
+        </section>
+
+
+        {/* ===================================================
+            FEATURES HEADER
+            =================================================== */}
+
+        <div className="pro-section-header">
+
+          <div>
+
+            <span className="pro-section-label">
+              AI MUSIC ANALYSIS
+            </span>
 
             <h2>
-              Analyze Your Music
+              Explore Features
             </h2>
 
             <p>
-              Upload an audio file and let AI identify the mood of your music.
+              Powerful AI tools to understand
+              the emotional characteristics of music.
             </p>
 
-            <Link to="/upload">
-              <button className="upload-button">
-                🎵 Upload Music
-              </button>
+          </div>
+
+        </div>
+
+
+        {/* ===================================================
+            FEATURES GRID
+            =================================================== */}
+
+        <section className="pro-features-grid">
+
+          {features.map((feature, index) => (
+
+            <Link
+              key={index}
+              to={feature.path}
+              className="pro-feature-card"
+            >
+
+              <div className="pro-feature-icon">
+                {feature.icon}
+              </div>
+
+
+              <div className="pro-feature-content">
+
+                <h3>
+                  {feature.title}
+                </h3>
+
+                <p>
+                  {feature.description}
+                </p>
+
+              </div>
+
+
+              <span className="pro-feature-arrow">
+                →
+              </span>
+
             </Link>
 
-          </div>
+          ))}
 
         </section>
 
 
-        {/* =========================
-            AI MUSIC FEATURES
-        ========================== */}
+        {/* ===================================================
+            AI STATUS
+            =================================================== */}
 
-        <section className="features-section">
+        <section className="pro-ai-status">
 
-          <h2 className="features-heading">
-            AI Music Features
-          </h2>
-
-
-          <div className="feature-grid">
+          <div className="pro-ai-status-icon">
+            🤖
+          </div>
 
 
-            {/* Mood Detection */}
+          <div className="pro-ai-status-content">
 
-            <Link
-              to="/mood-result"
-              className="feature-card"
-            >
-              <div className="feature-icon">
-                😊
-              </div>
+            <h3>
+              AI Mood Classification System
+            </h3>
 
-              <h3>
-                Mood Detection
-              </h3>
-
-              <p>
-                AI predicts the emotional mood of your song.
-              </p>
-            </Link>
-
-
-            {/* Confidence */}
-
-            <Link
-              to="/confidence"
-              className="feature-card"
-            >
-              <div className="feature-icon">
-                📊
-              </div>
-
-              <h3>
-                Confidence Score
-              </h3>
-
-              <p>
-                View the confidence level of each AI prediction.
-              </p>
-            </Link>
-
-
-            {/* Timeline */}
-
-            <Link
-              to="/mood-timeline"
-              className="feature-card"
-            >
-              <div className="feature-icon">
-                📈
-              </div>
-
-              <h3>
-                Mood Timeline
-              </h3>
-
-              <p>
-                Understand how mood changes throughout the song.
-              </p>
-            </Link>
-
-
-            {/* Transition */}
-
-            <Link
-              to="/mood-transition"
-              className="feature-card"
-            >
-              <div className="feature-icon">
-                🔄
-              </div>
-
-              <h3>
-                Mood Transition
-              </h3>
-
-              <p>
-                Detect emotional transitions in your music.
-              </p>
-            </Link>
-
-
-            {/* Multi Mood */}
-
-            <Link
-              to="/multi-mood"
-              className="feature-card"
-            >
-              <div className="feature-icon">
-                🎭
-              </div>
-
-              <h3>
-                Multi-Mood Detection
-              </h3>
-
-              <p>
-                Detect multiple moods present in a single song.
-              </p>
-            </Link>
-
-
-            {/* Mood Intensity */}
-
-            <Link
-              to="/mood-intensity"
-              className="feature-card"
-            >
-              <div className="feature-icon">
-                🎚️
-              </div>
-
-              <h3>
-                Mood Intensity
-              </h3>
-
-              <p>
-                Detect Low, Medium or High mood intensity.
-              </p>
-            </Link>
-
-
-            {/* Explainable AI */}
-
-            <Link
-              to="/explainable-ai"
-              className="feature-card"
-            >
-              <div className="feature-icon">
-                🧠
-              </div>
-
-              <h3>
-                Explainable AI
-              </h3>
-
-              <p>
-                Understand why AI predicted a particular mood.
-              </p>
-            </Link>
-
-
-            {/* Lyrics */}
-
-            <Link
-              to="/lyrics"
-              className="feature-card"
-            >
-              <div className="feature-icon">
-                📝
-              </div>
-
-              <h3>
-                Lyrics Analysis
-              </h3>
-
-              <p>
-                Analyze the emotional meaning of song lyrics.
-              </p>
-            </Link>
-
-
-            {/* Recommendations */}
-
-            <Link
-              to="/recommendations"
-              className="feature-card"
-            >
-              <div className="feature-icon">
-                🎵
-              </div>
-
-              <h3>
-                Song Recommendations
-              </h3>
-
-              <p>
-                Get song recommendations based on your mood.
-              </p>
-            </Link>
-
+            <p>
+              Random Forest based music mood
+              prediction system is ready for analysis.
+            </p>
 
           </div>
 
+
+          <span className="pro-ai-online">
+            ● ONLINE
+          </span>
+
         </section>
+
+
+        {/* ===================================================
+            FOOTER
+            =================================================== */}
+
+        <footer className="pro-footer">
+
+          <strong>
+            🎵 AI Music Mood Classifier
+          </strong>
+
+          <span>
+            Intelligent Music Emotion Analysis
+          </span>
+
+        </footer>
 
       </main>
 

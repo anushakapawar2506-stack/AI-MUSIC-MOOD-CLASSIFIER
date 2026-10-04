@@ -1,51 +1,118 @@
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 
 function Confidence() {
+  const [songName, setSongName] =
+    useState("Uploaded Music");
 
-  const moods = [
-    {
-      mood: "Happy 😊",
-      confidence: 87
-    },
-    {
-      mood: "Relaxed 😌",
-      confidence: 72
-    },
-    {
-      mood: "Energetic ⚡",
-      confidence: 65
-    },
-    {
-      mood: "Sad 😢",
-      confidence: 31
+  const [mood, setMood] =
+    useState("Unknown");
+
+  const [confidence, setConfidence] =
+    useState(0);
+
+  const [intensity, setIntensity] =
+    useState("Unknown");
+
+  const [features, setFeatures] =
+    useState(null);
+
+  useEffect(() => {
+    const savedSongName =
+      localStorage.getItem(
+        "uploadedSongName"
+      );
+
+    if (savedSongName) {
+      setSongName(savedSongName);
     }
-  ];
+
+    const savedMoodData =
+      localStorage.getItem(
+        "moodData"
+      );
+
+    if (savedMoodData) {
+      try {
+        const data =
+          JSON.parse(savedMoodData);
+
+        setMood(
+          data.mood || "Unknown"
+        );
+
+        setConfidence(
+          Number(data.confidence) || 0
+        );
+
+        setIntensity(
+          data.intensity || "Unknown"
+        );
+
+        setFeatures(
+          data.features || null
+        );
+
+      } catch (error) {
+        console.error(
+          "Confidence data error:",
+          error
+        );
+      }
+    }
+  }, []);
+
+  const getMoodEmoji = () => {
+    switch (mood) {
+      case "Happy":
+        return "😊";
+
+      case "Sad":
+        return "😔";
+
+      case "Relaxed":
+        return "😌";
+
+      case "Energetic":
+        return "⚡";
+
+      default:
+        return "🎵";
+    }
+  };
 
   return (
     <div className="confidence-page">
 
       <div className="confidence-container">
 
-        <Link to="/mood-result" className="back-link">
+        <Link
+          to="/mood-result"
+          className="back-link"
+        >
           ← Back to Mood Result
         </Link>
+
+        {/* HEADER */}
 
         <div className="confidence-header">
 
           <div className="confidence-icon">
-            📊
+            🎯
           </div>
 
           <h1>
-            Mood Confidence
+            Confidence Score
           </h1>
 
           <p>
-            View the AI confidence level for each predicted mood.
+            AI confidence level for the
+            predicted music mood.
           </p>
 
         </div>
 
+        {/* MAIN CARD */}
 
         <div className="confidence-card">
 
@@ -53,49 +120,191 @@ function Confidence() {
             🎵 Your Uploaded Song
           </h2>
 
-          <p className="confidence-song">
-            AI Mood Prediction Analysis
-          </p>
+          <div className="confidence-song">
 
+            <span>🎶</span>
 
-          <div className="confidence-list">
+            <strong>
+              {songName}
+            </strong>
 
-            {moods.map((item, index) => (
+          </div>
+
+          {/* RESULT */}
+
+          <div className="confidence-result">
+
+            <div
+              className="confidence-circle"
+              style={{
+                background: `conic-gradient(
+                  #667eea ${confidence * 3.6}deg,
+                  #e8e5f5 ${confidence * 3.6}deg
+                )`,
+              }}
+            >
+
+              <div className="confidence-circle-inner">
+
+                <span>
+                  {confidence}%
+                </span>
+
+                <small>
+                  Confidence
+                </small>
+
+              </div>
+
+            </div>
+
+            <div className="confidence-mood">
+
+              <div className="confidence-mood-emoji">
+                {getMoodEmoji()}
+              </div>
+
+              <h2>
+                {mood}
+              </h2>
+
+              <p>
+                Predicted Music Mood
+              </p>
+
+            </div>
+
+          </div>
+
+          {/* PROGRESS */}
+
+          <div className="confidence-progress-section">
+
+            <div className="confidence-progress-header">
+
+              <span>
+                AI Confidence
+              </span>
+
+              <strong>
+                {confidence}%
+              </strong>
+
+            </div>
+
+            <div className="confidence-bar-container">
 
               <div
-                className="confidence-item"
-                key={index}
+                className="confidence-bar"
+                style={{
+                  width: `${confidence}%`,
+                }}
               >
+              </div>
 
-                <div className="confidence-info">
+            </div>
 
-                  <span className="confidence-mood">
-                    {item.mood}
+          </div>
+
+          {/* STATS */}
+
+          <div className="confidence-stats">
+
+            <div className="confidence-stat">
+
+              <span>
+                🎭 Mood
+              </span>
+
+              <strong>
+                {mood}
+              </strong>
+
+            </div>
+
+            <div className="confidence-stat">
+
+              <span>
+                🎚️ Intensity
+              </span>
+
+              <strong>
+                {intensity}
+              </strong>
+
+            </div>
+
+            <div className="confidence-stat">
+
+              <span>
+                🎯 Confidence
+              </span>
+
+              <strong>
+                {confidence}%
+              </strong>
+
+            </div>
+
+          </div>
+
+          {/* FEATURES */}
+
+          {features && (
+
+            <div className="confidence-features">
+
+              <h3>
+                🎵 Audio Features Used
+              </h3>
+
+              <div className="confidence-feature-grid">
+
+                <div>
+                  <span>
+                    🔊 RMS Energy
                   </span>
 
-                  <span className="confidence-value">
-                    {item.confidence}%
-                  </span>
-
+                  <strong>
+                    {features.rms}
+                  </strong>
                 </div>
 
+                <div>
+                  <span>
+                    🎵 Tempo
+                  </span>
 
-                <div className="confidence-bar">
+                  <strong>
+                    {features.tempo} BPM
+                  </strong>
+                </div>
 
-                  <div
-                    className="confidence-fill"
-                    style={{
-                      width: `${item.confidence}%`
-                    }}
-                  ></div>
+                <div>
+                  <span>
+                    📊 ZCR
+                  </span>
 
+                  <strong>
+                    {features.zcr}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>
+                    🌊 Spectral Centroid
+                  </span>
+
+                  <strong>
+                    {features.spectral_centroid} Hz
+                  </strong>
                 </div>
 
               </div>
 
-            ))}
+            </div>
 
-          </div>
+          )}
 
         </div>
 

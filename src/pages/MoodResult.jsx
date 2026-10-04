@@ -1,227 +1,815 @@
-import React from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 function MoodResult() {
+  const [songName, setSongName] = useState("Uploaded Music");
+  const [mood, setMood] = useState("Energetic");
+  const [confidence, setConfidence] = useState(87);
+  const [intensity, setIntensity] = useState("Low");
+  const [probabilities, setProbabilities] = useState({});
+
+  useEffect(() => {
+    const savedSongName =
+      localStorage.getItem("uploadedSongName");
+
+    if (savedSongName) {
+      setSongName(savedSongName);
+    }
+
+    const savedMoodData =
+      localStorage.getItem("moodData");
+
+    if (savedMoodData) {
+      try {
+        const data = JSON.parse(savedMoodData);
+
+        // MOOD
+        if (data.mood) {
+          setMood(data.mood);
+        }
+
+        // CONFIDENCE
+        if (data.confidence !== undefined) {
+          setConfidence(Number(data.confidence));
+        }
+
+        // INTENSITY
+        if (data.intensity) {
+          setIntensity(data.intensity);
+        }
+
+        // PROBABILITIES
+        if (data.probabilities) {
+          setProbabilities(data.probabilities);
+        }
+      } catch (error) {
+        console.error(
+          "Error reading moodData:",
+          error
+        );
+      }
+    }
+  }, []);
+
+  // ==========================================
+  // MOOD ICON
+  // ==========================================
+
+  const getMoodIcon = (currentMood) => {
+    const moodName =
+      String(currentMood).toLowerCase();
+
+    if (moodName.includes("happy")) {
+      return "😊";
+    }
+
+    if (moodName.includes("sad")) {
+      return "😢";
+    }
+
+    if (moodName.includes("energetic")) {
+      return "⚡";
+    }
+
+    if (moodName.includes("relaxed")) {
+      return "😌";
+    }
+
+    if (moodName.includes("romantic")) {
+      return "❤️";
+    }
+
+    if (moodName.includes("aggressive")) {
+      return "🔥";
+    }
+
+    if (moodName.includes("dramatic")) {
+      return "🎭";
+    }
+
+    return "🎵";
+  };
+
+  // ==========================================
+  // INTENSITY ICON
+  // ==========================================
+
+  const getIntensityIcon = () => {
+    const currentIntensity =
+      String(intensity).toLowerCase();
+
+    if (currentIntensity === "high") {
+      return "🔥";
+    }
+
+    if (currentIntensity === "medium") {
+      return "⚡";
+    }
+
+    return "🌿";
+  };
+
+  // ==========================================
+  // INTENSITY CLASS
+  // ==========================================
+
+  const getIntensityClass = () => {
+    const currentIntensity =
+      String(intensity).toLowerCase();
+
+    if (currentIntensity === "high") {
+      return "high";
+    }
+
+    if (currentIntensity === "medium") {
+      return "medium";
+    }
+
+    return "low";
+  };
+
+  // ==========================================
+  // PROBABILITY VALUE
+  // ==========================================
+
+  const getProbability = (value) => {
+    const number = Number(value);
+
+    if (Number.isNaN(number)) {
+      return 0;
+    }
+
+    return Math.max(
+      0,
+      Math.min(100, number)
+    );
+  };
+
+  const moodIcon = getMoodIcon(mood);
+
+  const sortedProbabilities =
+    Object.entries(probabilities).sort(
+      ([, first], [, second]) =>
+        Number(second) - Number(first)
+    );
+
   return (
-    <div className="mood-result-page">
+    <div className="professional-result-page">
 
-      {/* Page Header */}
-      <div className="mood-result-header">
-        <h1>😊 Mood Result</h1>
+      {/* =================================================
+          NAVBAR
+          ================================================= */}
 
-        <p>
-          AI has analyzed your uploaded song and predicted its emotional mood.
-        </p>
-      </div>
+      <nav className="result-navbar">
 
+        <Link
+          to="/dashboard"
+          className="result-brand"
+        >
+          <span className="result-brand-icon">
+            🎵
+          </span>
 
-      {/* Uploaded Song */}
-      <div className="song-result-card">
+          <span className="result-brand-text">
+            <strong>
+              AI Music Mood
+            </strong>
 
-        <div className="song-icon">
-          🎵
+            <small>
+              Classifier
+            </small>
+          </span>
+        </Link>
+
+        <div className="result-nav-links">
+
+          <Link to="/dashboard">
+            Dashboard
+          </Link>
+
+          <Link to="/upload">
+            Upload Music
+          </Link>
+
+          <Link to="/history">
+            History
+          </Link>
+
+          <Link to="/feedback">
+            Feedback
+          </Link>
+
         </div>
 
-        <div className="song-info">
-          <h2>Your Uploaded Song</h2>
+      </nav>
 
-          <p>
-            Song: <strong>Uploaded Music</strong>
-          </p>
-        </div>
+      {/* =================================================
+          MAIN
+          ================================================= */}
 
-      </div>
+      <main className="result-main-container">
 
+        {/* BACK */}
 
-      {/* Main Mood */}
-      <div className="main-mood-card">
+        <Link
+          to="/upload"
+          className="result-back-link"
+        >
+          ← Back to Upload
+        </Link>
 
-        <p className="result-label">
-          AI Predicted Mood
-        </p>
+        {/* =================================================
+            HEADER
+            ================================================= */}
 
-        <div className="main-mood">
-          😊
-        </div>
+        <section className="result-page-header">
 
-        <h2>Happy</h2>
+          <div>
 
-        <p className="mood-description">
-          The AI model detected a positive and cheerful emotional pattern
-          in your uploaded song.
-        </p>
+            <span className="result-eyebrow">
+              AI MUSIC ANALYSIS
+            </span>
 
-        <div className="confidence-result">
-          Confidence: <strong>87%</strong>
-        </div>
-
-      </div>
-
-
-      {/* Mood Details */}
-      <div className="mood-details">
-
-        <h2>🎭 Mood Analysis</h2>
-
-        <div className="mood-detail-grid">
-
-          {/* Happy */}
-          <div className="mood-detail-card">
-
-            <div className="detail-top">
-              <span>😊 Happy</span>
-              <strong>87%</strong>
-            </div>
-
-            <div className="progress-bar">
-              <div
-                className="progress-fill"
-                style={{ width: "87%" }}
-              ></div>
-            </div>
+            <h1>
+              Music Mood Result
+            </h1>
 
             <p>
-              Positive and cheerful emotion detected.
+              Your uploaded music has been
+              analyzed using the AI mood
+              classification system.
             </p>
 
           </div>
 
+        </section>
 
-          {/* Relaxed */}
-          <div className="mood-detail-card">
+        {/* =================================================
+            SONG INFORMATION
+            ================================================= */}
 
-            <div className="detail-top">
-              <span>😌 Relaxed</span>
-              <strong>72%</strong>
-            </div>
+        <section className="song-info-card">
 
-            <div className="progress-bar">
-              <div
-                className="progress-fill"
-                style={{ width: "72%" }}
-              ></div>
-            </div>
+          <div className="song-info-icon">
+            🎧
+          </div>
+
+          <div className="song-info-content">
+
+            <span>
+              ANALYZED SONG
+            </span>
+
+            <h2>
+              {songName}
+            </h2>
 
             <p>
-              Calm and peaceful emotion detected.
+              AI analysis completed successfully
             </p>
 
           </div>
 
+          <div className="analysis-status">
 
-          {/* Energetic */}
-          <div className="mood-detail-card">
+            <span className="status-dot"></span>
 
-            <div className="detail-top">
-              <span>⚡ Energetic</span>
-              <strong>65%</strong>
+            ANALYZED
+
+          </div>
+
+        </section>
+
+        {/* =================================================
+            MAIN RESULT
+            ================================================= */}
+
+        <section className="main-result-card">
+
+          {/* MOOD */}
+
+          <div className="result-mood-area">
+
+            <div className="result-mood-icon">
+              {moodIcon}
             </div>
 
-            <div className="progress-bar">
-              <div
-                className="progress-fill"
-                style={{ width: "65%" }}
-              ></div>
+            <div className="result-mood-content">
+
+              <span className="result-label">
+                DETECTED MOOD
+              </span>
+
+              <h2>
+                {mood}
+              </h2>
+
+              <p>
+                Primary emotional state detected
+                by AI
+              </p>
+
             </div>
+
+          </div>
+
+          {/* STATS */}
+
+          <div className="result-stat-area">
+
+            {/* CONFIDENCE */}
+
+            <div className="result-stat">
+
+              <span>
+                AI CONFIDENCE
+              </span>
+
+              <strong>
+                {confidence.toFixed(0)}%
+              </strong>
+
+            </div>
+
+            <div className="result-stat-divider"></div>
+
+            {/* INTENSITY */}
+
+            <div className="result-stat">
+
+              <span>
+                MOOD INTENSITY
+              </span>
+
+              <strong
+                className={`result-intensity-value ${getIntensityClass()}`}
+              >
+                {getIntensityIcon()}{" "}
+                {intensity}
+              </strong>
+
+            </div>
+
+          </div>
+
+        </section>
+
+        {/* =================================================
+            PROBABILITY
+            ================================================= */}
+
+        <section className="probability-card">
+
+          <div className="probability-header">
+
+            <div>
+
+              <span className="result-eyebrow">
+                MODEL PREDICTION
+              </span>
+
+              <h2>
+                Mood Probability
+              </h2>
+
+              <p>
+                Probability distribution generated
+                by the Random Forest classification
+                model.
+              </p>
+
+            </div>
+
+            <div className="probability-main-value">
+              {confidence.toFixed(0)}%
+            </div>
+
+          </div>
+
+          {sortedProbabilities.length > 0 ? (
+
+            <div className="probability-list">
+
+              {sortedProbabilities.map(
+                ([moodName, value]) => {
+
+                  const percentage =
+                    getProbability(value);
+
+                  return (
+                    <div
+                      className="probability-row"
+                      key={moodName}
+                    >
+
+                      <div className="probability-row-top">
+
+                        <span>
+                          {getMoodIcon(
+                            moodName
+                          )}{" "}
+                          {moodName}
+                        </span>
+
+                        <strong>
+                          {percentage.toFixed(2)}%
+                        </strong>
+
+                      </div>
+
+                      <div className="probability-bar">
+
+                        <div
+                          className="probability-fill"
+                          style={{
+                            width:
+                              `${percentage}%`,
+                          }}
+                        ></div>
+
+                      </div>
+
+                    </div>
+                  );
+                }
+              )}
+
+            </div>
+
+          ) : (
+
+            <div className="probability-list">
+
+              <div className="probability-row">
+
+                <div className="probability-row-top">
+
+                  <span>
+                    {moodIcon} {mood}
+                  </span>
+
+                  <strong>
+                    {confidence.toFixed(2)}%
+                  </strong>
+
+                </div>
+
+                <div className="probability-bar">
+
+                  <div
+                    className="probability-fill"
+                    style={{
+                      width:
+                        `${confidence}%`,
+                    }}
+                  ></div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          )}
+
+        </section>
+
+        {/* =================================================
+            ANALYSIS DETAILS
+            ================================================= */}
+
+        <section className="analysis-detail-grid">
+
+          {/* PRIMARY MOOD */}
+
+          <div className="analysis-detail-card">
+
+            <div className="analysis-detail-icon">
+              {moodIcon}
+            </div>
+
+            <div>
+
+              <span>
+                PRIMARY MOOD
+              </span>
+
+              <strong>
+                {mood}
+              </strong>
+
+              <p>
+                Most probable emotional category
+              </p>
+
+            </div>
+
+          </div>
+
+          {/* CONFIDENCE */}
+
+          <div className="analysis-detail-card">
+
+            <div className="analysis-detail-icon">
+              🎯
+            </div>
+
+            <div>
+
+              <span>
+                CONFIDENCE
+              </span>
+
+              <strong>
+                {confidence.toFixed(0)}%
+              </strong>
+
+              <p>
+                AI prediction confidence level
+              </p>
+
+            </div>
+
+          </div>
+
+          {/* =================================================
+              INTENSITY
+              ================================================= */}
+
+          <div className="analysis-detail-card intensity-detail-card">
+
+            <div className="analysis-detail-icon">
+              {getIntensityIcon()}
+            </div>
+
+            <div>
+
+              <span>
+                MOOD INTENSITY
+              </span>
+
+              <strong
+                className={`result-intensity-value ${getIntensityClass()}`}
+              >
+                {intensity}
+              </strong>
+
+              <p>
+                Overall emotional intensity
+              </p>
+
+            </div>
+
+          </div>
+
+        </section>
+
+        {/* =================================================
+            RESULT TOOLS
+            ================================================= */}
+
+        <section className="result-tools-grid">
+
+          <Link
+            to="/confidence"
+            className="result-tool-card"
+          >
+            <span>
+              🎯
+            </span>
+
+            <div>
+
+              <strong>
+                Confidence Analysis
+              </strong>
+
+              <p>
+                View detailed AI confidence
+                information.
+              </p>
+
+            </div>
+
+            <b>
+              →
+            </b>
+
+          </Link>
+
+          <Link
+            to="/mood-timeline"
+            className="result-tool-card"
+          >
+            <span>
+              📈
+            </span>
+
+            <div>
+
+              <strong>
+                Mood Timeline
+              </strong>
+
+              <p>
+                See how the mood changes
+                throughout the song.
+              </p>
+
+            </div>
+
+            <b>
+              →
+            </b>
+
+          </Link>
+
+          <Link
+            to="/mood-transition"
+            className="result-tool-card"
+          >
+            <span>
+              🔄
+            </span>
+
+            <div>
+
+              <strong>
+                Mood Transition
+              </strong>
+
+              <p>
+                Explore emotional transitions
+                in the music.
+              </p>
+
+            </div>
+
+            <b>
+              →
+            </b>
+
+          </Link>
+
+          <Link
+            to="/multi-mood"
+            className="result-tool-card"
+          >
+            <span>
+              🎭
+            </span>
+
+            <div>
+
+              <strong>
+                Multi-Mood Detection
+              </strong>
+
+              <p>
+                Explore multiple moods detected
+                in the song.
+              </p>
+
+            </div>
+
+            <b>
+              →
+            </b>
+
+          </Link>
+
+          <Link
+            to="/explainable-ai"
+            className="result-tool-card"
+          >
+            <span>
+              🧠
+            </span>
+
+            <div>
+
+              <strong>
+                Explainable AI
+              </strong>
+
+              <p>
+                Understand why the AI selected
+                this mood.
+              </p>
+
+            </div>
+
+            <b>
+              →
+            </b>
+
+          </Link>
+
+          <Link
+            to="/recommendations"
+            className="result-tool-card"
+          >
+            <span>
+              🎧
+            </span>
+
+            <div>
+
+              <strong>
+                Recommendations
+              </strong>
+
+              <p>
+                Discover music recommendations
+                based on the detected mood.
+              </p>
+
+            </div>
+
+            <b>
+              →
+            </b>
+
+          </Link>
+
+          <Link
+            to="/mood-intensity"
+            className="result-tool-card"
+          >
+            <span>
+              🔥
+            </span>
+
+            <div>
+
+              <strong>
+                Mood Intensity
+              </strong>
+
+              <p>
+                View detailed intensity analysis
+                of the detected mood.
+              </p>
+
+            </div>
+
+            <b>
+              →
+            </b>
+
+          </Link>
+
+        </section>
+
+        {/* =================================================
+            FEEDBACK
+            ================================================= */}
+
+        <section className="result-feedback-cta">
+
+          <div>
+
+            <span>
+              HELP US IMPROVE
+            </span>
+
+            <h2>
+              Was this prediction accurate?
+            </h2>
 
             <p>
-              High-energy emotional pattern detected.
+              Share your feedback about the
+              AI mood prediction.
             </p>
 
           </div>
 
+          <Link
+            to="/feedback"
+            className="result-feedback-button"
+          >
+            Give Feedback →
+          </Link>
 
-          {/* Sad */}
-          <div className="mood-detail-card">
+        </section>
 
-            <div className="detail-top">
-              <span>😢 Sad</span>
-              <strong>31%</strong>
-            </div>
+        {/* =================================================
+            FOOTER
+            ================================================= */}
 
-            <div className="progress-bar">
-              <div
-                className="progress-fill"
-                style={{ width: "31%" }}
-              ></div>
-            </div>
+        <footer className="result-footer">
 
-            <p>
-              Low level of sad emotional pattern detected.
-            </p>
+          <strong>
+            🎵 AI Music Mood Classifier
+          </strong>
 
-          </div>
+          <span>
+            Intelligent Music Emotion Analysis
+          </span>
 
-        </div>
+        </footer>
 
-      </div>
-
-
-      {/* Result Actions */}
-      <div className="result-actions">
-
-        <button
-          onClick={() => {
-            window.location.href = "/mood-timeline";
-          }}
-        >
-          📈 Mood Timeline
-        </button>
-
-        <button
-          onClick={() => {
-            window.location.href = "/mood-transition";
-          }}
-        >
-          🔄 Mood Transition
-        </button>
-
-        <button
-          onClick={() => {
-            window.location.href = "/confidence";
-          }}
-        >
-          📊 Confidence Graph
-        </button>
-
-        <button
-          onClick={() => {
-            window.location.href = "/multi-mood";
-          }}
-        >
-          🎭 Multi-Mood
-        </button>
-
-        <button
-          onClick={() => {
-            window.location.href = "/mood-intensity";
-          }}
-        >
-          🎚️ Mood Intensity
-        </button>
-
-      </div>
-
-
-      {/* Bottom Buttons */}
-      <div className="result-bottom-actions">
-
-        <button
-          onClick={() => {
-            window.location.href = "/upload";
-          }}
-        >
-          🎵 Analyze Another Song
-        </button>
-
-        <button
-          onClick={() => {
-            window.location.href = "/dashboard";
-          }}
-        >
-          🏠 Back to Dashboard
-        </button>
-
-      </div>
+      </main>
 
     </div>
   );

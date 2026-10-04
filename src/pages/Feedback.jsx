@@ -1,151 +1,596 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 function Feedback() {
-  const [feedbackType, setFeedbackType] = useState("");
-  const [message, setMessage] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [songName, setSongName] =
+    useState("Uploaded Music");
+
+  const [mood, setMood] =
+    useState("Unknown");
+
+  const [confidence, setConfidence] =
+    useState(0);
+
+  const [helpfulness, setHelpfulness] =
+    useState("");
+
+  const [rating, setRating] =
+    useState(0);
+
+  const [feedback, setFeedback] =
+    useState("");
+
+  const [submitted, setSubmitted] =
+    useState(false);
+
+  useEffect(() => {
+    const savedSongName =
+      localStorage.getItem("uploadedSongName");
+
+    if (savedSongName) {
+      setSongName(savedSongName);
+    }
+
+    const savedMoodData =
+      localStorage.getItem("moodData");
+
+    if (savedMoodData) {
+      try {
+        const data =
+          JSON.parse(savedMoodData);
+
+        if (data.mood) {
+          setMood(data.mood);
+        }
+
+        if (data.confidence !== undefined) {
+          setConfidence(
+            Number(data.confidence)
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Feedback data error:",
+          error
+        );
+      }
+    }
+  }, []);
+
+  const getMoodIcon = () => {
+    const currentMood =
+      String(mood).toLowerCase();
+
+    if (currentMood.includes("happy")) {
+      return "😊";
+    }
+
+    if (currentMood.includes("sad")) {
+      return "😢";
+    }
+
+    if (currentMood.includes("relaxed")) {
+      return "😌";
+    }
+
+    if (currentMood.includes("energetic")) {
+      return "⚡";
+    }
+
+    if (currentMood.includes("aggressive")) {
+      return "🔥";
+    }
+
+    if (currentMood.includes("romantic")) {
+      return "❤️";
+    }
+
+    if (currentMood.includes("dramatic")) {
+      return "🎭";
+    }
+
+    return "🎵";
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (!feedbackType) {
-      alert("Please select your feedback.");
+    if (!helpfulness) {
+      alert(
+        "Please select whether the prediction was helpful."
+      );
       return;
     }
+
+    if (rating === 0) {
+      alert(
+        "Please rate the AI prediction."
+      );
+      return;
+    }
+
+    const feedbackData = {
+      songName,
+      mood,
+      confidence,
+      helpfulness,
+      rating,
+      feedback,
+      submittedAt:
+        new Date().toISOString(),
+    };
+
+    localStorage.setItem(
+      "userFeedback",
+      JSON.stringify(feedbackData)
+    );
 
     setSubmitted(true);
   };
 
+  if (submitted) {
+    return (
+      <div className="feedback-page">
+
+        <nav className="feedback-navbar">
+
+          <Link
+            to="/dashboard"
+            className="feedback-brand"
+          >
+            <span className="feedback-brand-icon">
+              🎵
+            </span>
+
+            <span className="feedback-brand-text">
+              <strong>
+                AI Music Mood
+              </strong>
+
+              <small>
+                Classifier
+              </small>
+            </span>
+          </Link>
+
+          <div className="feedback-nav-links">
+            <Link to="/dashboard">
+              Dashboard
+            </Link>
+
+            <Link to="/upload">
+              Upload Music
+            </Link>
+
+            <Link to="/history">
+              History
+            </Link>
+          </div>
+
+        </nav>
+
+        <main className="feedback-container">
+
+          <div className="feedback-success">
+
+            <div className="feedback-success-icon">
+              ✓
+            </div>
+
+            <h2>
+              Thank You for Your Feedback!
+            </h2>
+
+            <p>
+              Your feedback has been recorded
+              successfully. It helps improve the
+              AI Music Mood Classifier.
+            </p>
+
+            <Link
+              to="/dashboard"
+              className="feedback-success-button"
+            >
+              ← Back to Dashboard
+            </Link>
+
+          </div>
+
+        </main>
+
+      </div>
+    );
+  }
+
   return (
     <div className="feedback-page">
 
-      <div className="feedback-container">
+      {/* =========================
+          NAVBAR
+      ========================= */}
 
-        <Link to="/mood-result" className="back-link">
+      <nav className="feedback-navbar">
+
+        <Link
+          to="/dashboard"
+          className="feedback-brand"
+        >
+          <span className="feedback-brand-icon">
+            🎵
+          </span>
+
+          <span className="feedback-brand-text">
+            <strong>
+              AI Music Mood
+            </strong>
+
+            <small>
+              Classifier
+            </small>
+          </span>
+        </Link>
+
+        <div className="feedback-nav-links">
+
+          <Link to="/dashboard">
+            Dashboard
+          </Link>
+
+          <Link to="/upload">
+            Upload Music
+          </Link>
+
+          <Link to="/history">
+            History
+          </Link>
+
+        </div>
+
+      </nav>
+
+      {/* =========================
+          MAIN
+      ========================= */}
+
+      <main className="feedback-container">
+
+        <Link
+          to="/mood-result"
+          className="feedback-back"
+        >
           ← Back to Mood Result
         </Link>
 
-        <div className="feedback-header">
+        {/* =========================
+            HEADER
+        ========================= */}
 
-          <div className="feedback-icon">
+        <section className="feedback-header">
+
+          <div className="feedback-header-icon">
             💬
           </div>
 
-          <h1>User Feedback</h1>
+          <span>
+            AI PREDICTION FEEDBACK
+          </span>
+
+          <h1>
+            Help Us Improve
+          </h1>
 
           <p>
-            Tell us how accurate the AI mood prediction was.
+            Tell us how accurate the AI mood
+            prediction was for your uploaded music.
           </p>
 
-        </div>
+        </section>
 
-        <div className="feedback-card">
+        {/* =========================
+            SONG CARD
+        ========================= */}
 
-          {!submitted ? (
-            <form onSubmit={handleSubmit}>
+        <section className="feedback-song-card">
 
-              <div className="feedback-song">
-                <span>🎵 Your Uploaded Song</span>
-                <h2>AI Mood Prediction</h2>
-                <p>Predicted Mood: 😊 Happy</p>
-              </div>
+          <div className="feedback-song-icon">
+            🎧
+          </div>
 
-              <h3 className="feedback-question">
-                Was this mood prediction helpful?
-              </h3>
+          <div className="feedback-song-info">
 
-              <div className="feedback-options">
+            <span>
+              YOUR UPLOADED SONG
+            </span>
 
-                <button
-                  type="button"
-                  className={
-                    feedbackType === "accurate"
-                      ? "feedback-option selected"
-                      : "feedback-option"
-                  }
-                  onClick={() => setFeedbackType("accurate")}
-                >
-                  😊
-                  <span>Yes, accurate</span>
-                </button>
+            <h3>
+              {songName}
+            </h3>
 
-                <button
-                  type="button"
-                  className={
-                    feedbackType === "partial"
-                      ? "feedback-option selected"
-                      : "feedback-option"
-                  }
-                  onClick={() => setFeedbackType("partial")}
-                >
-                  😐
-                  <span>Partially accurate</span>
-                </button>
+            <p>
+              AI analysis completed successfully
+            </p>
 
-                <button
-                  type="button"
-                  className={
-                    feedbackType === "not-accurate"
-                      ? "feedback-option selected"
-                      : "feedback-option"
-                  }
-                  onClick={() => setFeedbackType("not-accurate")}
-                >
-                  😕
-                  <span>Not accurate</span>
-                </button>
+          </div>
 
-              </div>
+          <div className="feedback-prediction">
 
-              <label className="feedback-label">
-                Your Feedback
-              </label>
+            <span>
+              AI PREDICTION
+            </span>
 
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Write your feedback here..."
-                rows="5"
-              ></textarea>
+            <strong>
+              {getMoodIcon()} {mood}
+            </strong>
+
+            <strong>
+              🎯 {confidence.toFixed(0)}%
+            </strong>
+
+          </div>
+
+        </section>
+
+        {/* =========================
+            FEEDBACK FORM
+        ========================= */}
+
+        <form
+          className="feedback-card"
+          onSubmit={handleSubmit}
+        >
+
+          {/* =========================
+              HELPFULNESS
+          ========================= */}
+
+          <div className="feedback-section">
+
+            <span className="feedback-section-label">
+              PREDICTION ACCURACY
+            </span>
+
+            <h2>
+              Was this mood prediction helpful?
+            </h2>
+
+            <p>
+              Select the option that best describes
+              the AI prediction.
+            </p>
+
+            <div className="feedback-options">
 
               <button
-                type="submit"
-                className="submit-feedback"
+                type="button"
+                className={
+                  helpfulness === "accurate"
+                    ? "feedback-option selected"
+                    : "feedback-option"
+                }
+                onClick={() =>
+                  setHelpfulness("accurate")
+                }
               >
-                Submit Feedback
+                <span className="feedback-option-icon">
+                  😊
+                </span>
+
+                <strong>
+                  Yes, accurate
+                </strong>
+
+                <small>
+                  The prediction matches my opinion
+                </small>
               </button>
 
-            </form>
-          ) : (
+              <button
+                type="button"
+                className={
+                  helpfulness === "partial"
+                    ? "feedback-option selected"
+                    : "feedback-option"
+                }
+                onClick={() =>
+                  setHelpfulness("partial")
+                }
+              >
+                <span className="feedback-option-icon">
+                  😐
+                </span>
 
-            <div className="feedback-success">
+                <strong>
+                  Partially accurate
+                </strong>
 
-              <div className="success-icon">
-                ✅
-              </div>
+                <small>
+                  The prediction is somewhat correct
+                </small>
+              </button>
 
-              <h2>
-                Thank You!
-              </h2>
+              <button
+                type="button"
+                className={
+                  helpfulness === "incorrect"
+                    ? "feedback-option selected"
+                    : "feedback-option"
+                }
+                onClick={() =>
+                  setHelpfulness("incorrect")
+                }
+              >
+                <span className="feedback-option-icon">
+                  😕
+                </span>
 
-              <p>
-                Your feedback has been submitted successfully.
-              </p>
+                <strong>
+                  Not accurate
+                </strong>
 
-              <Link to="/dashboard">
-                <button className="dashboard-button">
-                  🏠 Back to Dashboard
-                </button>
-              </Link>
+                <small>
+                  The prediction is incorrect
+                </small>
+              </button>
 
             </div>
 
-          )}
+          </div>
+
+          {/* =========================
+              STAR RATING
+          ========================= */}
+
+          <div className="feedback-section">
+
+            <span className="feedback-section-label">
+              USER RATING
+            </span>
+
+            <h2>
+              ⭐ Rate the AI Prediction
+            </h2>
+
+            <p>
+              How would you rate the quality of
+              this AI mood prediction?
+            </p>
+
+            <div className="feedback-stars">
+
+              {[1, 2, 3, 4, 5].map(
+                (star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    className={
+                      star <= rating
+                        ? "feedback-star active"
+                        : "feedback-star"
+                    }
+                    onClick={() =>
+                      setRating(star)
+                    }
+                    aria-label={`Rate ${star} out of 5`}
+                  >
+                    ★
+                  </button>
+                )
+              )}
+
+            </div>
+
+            <div className="feedback-rating-text">
+
+              {rating === 0 &&
+                "Select your rating"}
+
+              {rating === 1 &&
+                "Very Poor"}
+
+              {rating === 2 &&
+                "Needs Improvement"}
+
+              {rating === 3 &&
+                "Average"}
+
+              {rating === 4 &&
+                "Good Prediction"}
+
+              {rating === 5 &&
+                "Excellent Prediction"}
+
+            </div>
+
+          </div>
+
+          {/* =========================
+              WRITTEN FEEDBACK
+          ========================= */}
+
+          <div className="feedback-section">
+
+            <span className="feedback-section-label">
+              ADDITIONAL FEEDBACK
+            </span>
+
+            <h2>
+              📝 Tell us more
+            </h2>
+
+            <p>
+              Your comments can help us improve
+              the music mood prediction system.
+            </p>
+
+            <textarea
+              className="feedback-textarea"
+              value={feedback}
+              onChange={(e) =>
+                setFeedback(e.target.value)
+              }
+              placeholder="Write your feedback here..."
+            />
+
+          </div>
+
+          {/* =========================
+              SUBMIT
+          ========================= */}
+
+          <div className="feedback-submit-area">
+
+            <button
+              type="submit"
+              className="feedback-submit-button"
+            >
+              ⭐ Submit Feedback
+            </button>
+
+          </div>
+
+        </form>
+
+        {/* =========================
+            INFO
+        ========================= */}
+
+        <div className="feedback-info-card">
+
+          <div className="feedback-info-icon">
+            🧠
+          </div>
+
+          <div>
+            <strong>
+              Why is your feedback important?
+            </strong>
+
+            <p>
+              Your feedback helps evaluate the
+              accuracy and quality of the AI Music
+              Mood Classification system.
+            </p>
+          </div>
 
         </div>
 
-      </div>
+        {/* =========================
+            FOOTER
+        ========================= */}
+
+        <footer className="feedback-footer">
+
+          <strong>
+            🎵 AI Music Mood Classifier
+          </strong>
+
+          <span>
+            Intelligent Music Emotion Analysis
+          </span>
+
+        </footer>
+
+      </main>
 
     </div>
   );
