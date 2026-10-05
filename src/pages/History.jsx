@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
@@ -19,8 +20,11 @@ function History() {
         "http://127.0.0.1:5000/history"
       );
 
+      console.log("History API Response:", response.data);
+
       if (response.data.success) {
-        setHistory(response.data.history || []);
+        // Backend sends history data as "predictions"
+        setHistory(response.data.predictions || []);
       } else {
         setError("Unable to load prediction history.");
       }
@@ -230,6 +234,7 @@ function History() {
             </div>
 
             <div>
+
               <span className="history-section-label">
                 MUSIC ANALYTICS
               </span>
@@ -242,6 +247,7 @@ function History() {
                 View and manage your previously
                 analyzed music and AI mood predictions.
               </p>
+
             </div>
 
           </div>
@@ -270,6 +276,7 @@ function History() {
 
             <div>
               <span>Total Predictions</span>
+
               <strong>
                 {history.length}
               </strong>
@@ -285,6 +292,7 @@ function History() {
 
             <div>
               <span>Music Analyses</span>
+
               <strong>
                 {history.length}
               </strong>
@@ -300,6 +308,7 @@ function History() {
 
             <div>
               <span>AI Analysis</span>
+
               <strong>
                 Ready
               </strong>
@@ -342,6 +351,7 @@ function History() {
             </div>
 
             <div>
+
               <h3>
                 Unable to Load History
               </h3>
@@ -356,6 +366,7 @@ function History() {
               >
                 🔄 Try Again
               </button>
+
             </div>
 
           </div>
@@ -411,6 +422,7 @@ function History() {
               <div className="history-data-header">
 
                 <div>
+
                   <span>
                     ANALYSIS RECORDS
                   </span>
@@ -418,6 +430,7 @@ function History() {
                   <h2>
                     Your Predictions
                   </h2>
+
                 </div>
 
                 <div className="history-record-count">
@@ -431,6 +444,7 @@ function History() {
                 <table className="history-table">
 
                   <thead>
+
                     <tr>
                       <th>Music</th>
                       <th>Detected Mood</th>
@@ -439,6 +453,7 @@ function History() {
                       <th>Date</th>
                       <th>Action</th>
                     </tr>
+
                   </thead>
 
                   <tbody>
@@ -457,6 +472,7 @@ function History() {
                             </div>
 
                             <div>
+
                               <strong>
                                 {item.song}
                               </strong>
@@ -464,6 +480,7 @@ function History() {
                               <span>
                                 AI Music Analysis
                               </span>
+
                             </div>
 
                           </div>
@@ -478,11 +495,13 @@ function History() {
                               item.mood
                             )}`}
                           >
+
                             <span>
                               {getMoodEmoji(item.mood)}
                             </span>
 
                             {item.mood}
+
                           </span>
 
                         </td>
@@ -493,18 +512,27 @@ function History() {
                           <div className="history-confidence">
 
                             <strong>
-                              {item.confidence}%
+                              {String(
+                                item.confidence || ""
+                              ).replace("%", "")}
+                              %
                             </strong>
 
                             <div className="history-confidence-bar">
+
                               <span
                                 style={{
                                   width: `${Math.min(
-                                    Number(item.confidence) || 0,
+                                    Number(
+                                      String(
+                                        item.confidence || "0"
+                                      ).replace("%", "")
+                                    ) || 0,
                                     100
                                   )}%`,
                                 }}
                               ></span>
+
                             </div>
 
                           </div>
@@ -526,9 +554,11 @@ function History() {
 
                         {/* DATE */}
                         <td>
+
                           <span className="history-date">
                             📅 {item.date}
                           </span>
+
                         </td>
 
                         {/* DELETE */}
@@ -544,9 +574,11 @@ function History() {
                             title="Delete prediction"
                           >
                             🗑️
+
                             <span>
                               Delete
                             </span>
+
                           </button>
 
                         </td>
@@ -580,6 +612,7 @@ function History() {
         </footer>
 
       </main>
+
     </div>
   );
 }
