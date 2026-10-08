@@ -7,7 +7,7 @@ import os
 import traceback
 from datetime import datetime
 
-from backend.database import (
+from database import (
     create_history_table,
     save_prediction,
     get_predictions,
@@ -15,9 +15,8 @@ from backend.database import (
     clear_predictions
 )
 
-from backend.model import predict_mood_from_file
-from backend.gemini_service import generate_mood_explanation
-
+from model import predict_mood_from_file
+from gemini_service import generate_mood_explanation
 
 # ==========================================
 # FLASK APP
