@@ -1,7 +1,13 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
+
+// ==========================================
+// RENDER BACKEND URL
+// ==========================================
+
+const API_URL =
+  "https://ai-music-mood-classifier-1-bzvp.onrender.com";
 
 function Upload() {
   const [file, setFile] = useState(null);
@@ -26,12 +32,22 @@ function Upload() {
       );
 
       // Remove old audio URL
-      localStorage.removeItem("uploadedAudioUrl");
+      localStorage.removeItem(
+        "uploadedAudioUrl"
+      );
 
       // Remove previous analysis data
-      localStorage.removeItem("moodData");
-      localStorage.removeItem("moodTransitionData");
-      localStorage.removeItem("multiMoodData");
+      localStorage.removeItem(
+        "moodData"
+      );
+
+      localStorage.removeItem(
+        "moodTransitionData"
+      );
+
+      localStorage.removeItem(
+        "multiMoodData"
+      );
     }
   };
 
@@ -45,7 +61,9 @@ function Upload() {
     }
 
     if (!file) {
-      alert("Please select a music file first.");
+      alert(
+        "Please select a music file first."
+      );
       return;
     }
 
@@ -56,20 +74,40 @@ function Upload() {
       // CLEAR OLD DATA
       // ==========================================
 
-      localStorage.removeItem("moodData");
-      localStorage.removeItem("moodTransitionData");
-      localStorage.removeItem("multiMoodData");
-      localStorage.removeItem("uploadedAudioUrl");
+      localStorage.removeItem(
+        "moodData"
+      );
+
+      localStorage.removeItem(
+        "moodTransitionData"
+      );
+
+      localStorage.removeItem(
+        "multiMoodData"
+      );
+
+      localStorage.removeItem(
+        "uploadedAudioUrl"
+      );
 
       // ==========================================
       // 1. MOOD ANALYSIS
       // ==========================================
 
-      console.log("================================");
-      console.log("🎵 STARTING MOOD ANALYSIS");
-      console.log("================================");
+      console.log(
+        "================================"
+      );
 
-      const moodFormData = new FormData();
+      console.log(
+        "🎵 STARTING MOOD ANALYSIS"
+      );
+
+      console.log(
+        "================================"
+      );
+
+      const moodFormData =
+        new FormData();
 
       moodFormData.append(
         "file",
@@ -78,7 +116,7 @@ function Upload() {
 
       const moodResponse =
         await axios.post(
-          "http://127.0.0.1:5000/mood",
+          `${API_URL}/mood`,
           moodFormData
         );
 
@@ -93,7 +131,7 @@ function Upload() {
       if (!moodData.success) {
         throw new Error(
           moodData.error ||
-          "Mood analysis failed."
+            "Mood analysis failed."
         );
       }
 
@@ -123,7 +161,7 @@ function Upload() {
       }
 
       const backendAudioUrl =
-        `http://127.0.0.1:5000/uploads/${encodeURIComponent(
+        `${API_URL}/uploads/${encodeURIComponent(
           moodData.filename
         )}`;
 
@@ -141,9 +179,17 @@ function Upload() {
       // 2. MOOD TRANSITION ANALYSIS
       // ==========================================
 
-      console.log("================================");
-      console.log("🎵 STARTING MOOD TRANSITION");
-      console.log("================================");
+      console.log(
+        "================================"
+      );
+
+      console.log(
+        "🎵 STARTING MOOD TRANSITION"
+      );
+
+      console.log(
+        "================================"
+      );
 
       const transitionFormData =
         new FormData();
@@ -155,7 +201,7 @@ function Upload() {
 
       const transitionResponse =
         await axios.post(
-          "http://127.0.0.1:5000/mood-transition",
+          `${API_URL}/mood-transition`,
           transitionFormData
         );
 
@@ -182,7 +228,7 @@ function Upload() {
       if (!transitionData.success) {
         throw new Error(
           transitionData.error ||
-          "Mood transition analysis failed."
+            "Mood transition analysis failed."
         );
       }
 
@@ -216,9 +262,17 @@ function Upload() {
       // 3. MULTI-MOOD ANALYSIS
       // ==========================================
 
-      console.log("================================");
-      console.log("🎵 STARTING MULTI-MOOD ANALYSIS");
-      console.log("================================");
+      console.log(
+        "================================"
+      );
+
+      console.log(
+        "🎵 STARTING MULTI-MOOD ANALYSIS"
+      );
+
+      console.log(
+        "================================"
+      );
 
       const multiMoodFormData =
         new FormData();
@@ -230,12 +284,13 @@ function Upload() {
 
       const multiMoodResponse =
         await axios.post(
-          "http://127.0.0.1:5000/multi-mood",
+          `${API_URL}/multi-mood`,
           multiMoodFormData
         );
 
       // IMPORTANT:
       // Declare multiMoodData BEFORE using it
+
       const multiMoodData =
         multiMoodResponse.data;
 
@@ -259,14 +314,15 @@ function Upload() {
       if (!multiMoodData.success) {
         throw new Error(
           multiMoodData.error ||
-          "Multi-Mood analysis failed."
+            "Multi-Mood analysis failed."
         );
       }
 
       // Backend returns "scores", not "moods"
       if (
         !multiMoodData.scores ||
-        typeof multiMoodData.scores !== "object"
+        typeof multiMoodData.scores !==
+          "object"
       ) {
         throw new Error(
           "Backend did not return Multi-Mood scores."
@@ -340,7 +396,10 @@ function Upload() {
           )
       };
 
-      // Get old history
+      // ==========================================
+      // GET OLD HISTORY
+      // ==========================================
+
       const oldHistory =
         JSON.parse(
           localStorage.getItem(
@@ -508,8 +567,8 @@ function Upload() {
 
         alert(
           "❌ Analysis failed.\n\n" +
-          "Backend Error:\n" +
-          backendMessage
+            "Backend Error:\n" +
+            backendMessage
         );
 
       }
@@ -521,7 +580,7 @@ function Upload() {
       else if (error.request) {
 
         console.error(
-          "❌ NO RESPONSE FROM FLASK:"
+          "❌ NO RESPONSE FROM BACKEND:"
         );
 
         console.error(
@@ -529,9 +588,9 @@ function Upload() {
         );
 
         alert(
-          "❌ Flask server response मिळाला नाही.\n\n" +
-          "Please check:\n" +
-          "http://127.0.0.1:5000"
+          "❌ Backend server response मिळाला नाही.\n\n" +
+            "Please check:\n" +
+            API_URL
         );
 
       }
@@ -549,7 +608,7 @@ function Upload() {
 
         alert(
           "❌ Analysis failed:\n\n" +
-          error.message
+            error.message
         );
       }
 
