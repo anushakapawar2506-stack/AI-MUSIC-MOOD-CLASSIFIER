@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -24,10 +25,7 @@ function Upload() {
         selectedFile.name
       );
 
-      // IMPORTANT:
-      // Do NOT save URL.createObjectURL() to localStorage.
-      // Backend URL will be saved after successful upload.
-
+      // Remove old audio URL
       localStorage.removeItem("uploadedAudioUrl");
 
       // Remove previous analysis data
@@ -78,12 +76,14 @@ function Upload() {
         file
       );
 
-      const moodResponse = await axios.post(
-        "http://127.0.0.1:5000/mood",
-        moodFormData
-      );
+      const moodResponse =
+        await axios.post(
+          "http://127.0.0.1:5000/mood",
+          moodFormData
+        );
 
-      const moodData = moodResponse.data;
+      const moodData =
+        moodResponse.data;
 
       console.log(
         "✅ MOOD RESPONSE:",
@@ -103,7 +103,9 @@ function Upload() {
 
       localStorage.setItem(
         "moodData",
-        JSON.stringify(moodData)
+        JSON.stringify(
+          moodData
+        )
       );
 
       console.log(
@@ -111,7 +113,7 @@ function Upload() {
       );
 
       // ==========================================
-      // SAVE REAL BACKEND AUDIO URL
+      // SAVE BACKEND AUDIO URL
       // ==========================================
 
       if (!moodData.filename) {
@@ -136,7 +138,7 @@ function Upload() {
       );
 
       // ==========================================
-      // 2. MOOD TRANSITION + SECTIONS
+      // 2. MOOD TRANSITION ANALYSIS
       // ==========================================
 
       console.log("================================");
@@ -161,6 +163,18 @@ function Upload() {
         transitionResponse.data;
 
       console.log(
+        "🔥 TRANSITIONS:",
+        transitionData.transitions
+      );
+
+      console.log(
+        "🔥 TRANSITION KEYS:",
+        Object.keys(
+          transitionData
+        )
+      );
+
+      console.log(
         "✅ TRANSITION RESPONSE:",
         transitionData
       );
@@ -172,13 +186,14 @@ function Upload() {
         );
       }
 
+      // Backend returns "transitions"
       if (
         !Array.isArray(
-          transitionData.sections
+          transitionData.transitions
         )
       ) {
         throw new Error(
-          "Backend did not return sections data."
+          "Backend did not return transitions data."
         );
       }
 
@@ -219,8 +234,22 @@ function Upload() {
           multiMoodFormData
         );
 
+      // IMPORTANT:
+      // Declare multiMoodData BEFORE using it
       const multiMoodData =
         multiMoodResponse.data;
+
+      console.log(
+        "🔥 MULTI-MOOD DATA:",
+        multiMoodData
+      );
+
+      console.log(
+        "🔥 MULTI-MOOD KEYS:",
+        Object.keys(
+          multiMoodData
+        )
+      );
 
       console.log(
         "✅ MULTI-MOOD RESPONSE:",
@@ -234,13 +263,13 @@ function Upload() {
         );
       }
 
+      // Backend returns "scores", not "moods"
       if (
-        !Array.isArray(
-          multiMoodData.moods
-        )
+        !multiMoodData.scores ||
+        typeof multiMoodData.scores !== "object"
       ) {
         throw new Error(
-          "Backend did not return Multi-Mood data."
+          "Backend did not return Multi-Mood scores."
         );
       }
 
@@ -353,7 +382,10 @@ function Upload() {
         ];
       }
 
-      // Save history
+      // ==========================================
+      // SAVE HISTORY
+      // ==========================================
+
       localStorage.setItem(
         "predictionHistory",
         JSON.stringify(

@@ -3,4 +3,8 @@ backend/venv/
 backend/__pycache__/
 backend/uploads/
 *.db
-*.pycdataset/
+*.pyc
+dataset/
+.env
+backend/.env
+backend/rag_data/chroma_db/

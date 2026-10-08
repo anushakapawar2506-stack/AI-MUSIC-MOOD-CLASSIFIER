@@ -21,12 +21,17 @@ function MoodTransition() {
 
     if (savedTransitionData) {
       try {
-        setTransitionData(
-          JSON.parse(savedTransitionData)
+        const data = JSON.parse(savedTransitionData);
+
+        console.log(
+          "🔄 MOOD TRANSITION DATA:",
+          data
         );
+
+        setTransitionData(data);
       } catch (error) {
         console.error(
-          "Error reading transition data:",
+          "❌ Error reading transition data:",
           error
         );
       }
@@ -43,7 +48,7 @@ function MoodTransition() {
         });
       } catch (error) {
         console.error(
-          "Error reading mood data:",
+          "❌ Error reading mood data:",
           error
         );
       }
@@ -96,81 +101,48 @@ function MoodTransition() {
   };
 
   // ==========================================
-  // GET ACTUAL TRANSITION TIME
+  // GET TRANSITION TIME
   // ==========================================
 
   const getTransitionTime = (transition) => {
-
-    // ------------------------------------------
-    // BACKEND "at" VALUE
-    // ------------------------------------------
-
-    if (
-      transition.at !== undefined &&
-      transition.at !== null
-    ) {
-      const transitionStart =
-        Number(transition.at);
-
-      const transitionEnd =
-        transition.end !== undefined &&
-        transition.end !== null
-          ? Number(transition.end)
-          : transitionStart + 10;
-
-      return `${formatTime(
-        transitionStart
-      )} – ${formatTime(
-        transitionEnd
-      )}`;
-    }
-
-    // ------------------------------------------
-    // BACKEND START / END
-    // ------------------------------------------
-
     const start =
-      transition.start ??
-      transition.start_time ??
-      transition.from_time ??
-      transition.section_start;
+      transition?.start ??
+      transition?.start_time ??
+      transition?.startTime ??
+      transition?.from_time ??
+      transition?.section_start ??
+      0;
 
     const end =
-      transition.end ??
-      transition.end_time ??
-      transition.to_time ??
-      transition.section_end;
+      transition?.end ??
+      transition?.end_time ??
+      transition?.endTime ??
+      transition?.to_time ??
+      transition?.section_end;
 
     if (
-      start !== undefined &&
-      start !== null &&
       end !== undefined &&
       end !== null
     ) {
-      return `${formatTime(
-        start
-      )} – ${formatTime(
-        end
-      )}`;
+      return `${formatTime(start)} – ${formatTime(end)}`;
     }
 
-    // ------------------------------------------
-    // OTHER TIMESTAMP
-    // ------------------------------------------
+    return `${formatTime(start)} – ${formatTime(
+      Number(start) + 10
+    )}`;
+  };
 
-    if (transition.time) {
-      return transition.time;
-    }
+  // ==========================================
+  // GET MOOD
+  // ==========================================
 
-    if (transition.timestamp) {
-      return transition.timestamp;
-    }
-
-    // ------------------------------------------
-    // FINAL FALLBACK
-    // ------------------------------------------
-
-    return "Transition time unavailable";
+  const getMood = (transition) => {
+    return (
+      transition?.mood ||
+      transition?.current_mood ||
+      transition?.currentMood ||
+      "Unknown"
+    );
   };
 
   // ==========================================
@@ -178,14 +150,33 @@ function MoodTransition() {
   // ==========================================
 
   const transitions =
-    transitionData?.transitions || [];
+    Array.isArray(
+      transitionData?.transitions
+    )
+      ? transitionData.transitions
+      : [];
 
-  const confidence =
-    transitionData?.confidence ??
-    JSON.parse(
-      localStorage.getItem("moodData") || "{}"
-    )?.confidence ??
-    0;
+  let confidence =
+    transitionData?.confidence;
+
+  if (
+    confidence === undefined ||
+    confidence === null
+  ) {
+    try {
+      const savedMoodData =
+        JSON.parse(
+          localStorage.getItem(
+            "moodData"
+          ) || "{}"
+        );
+
+      confidence =
+        savedMoodData?.confidence || 0;
+    } catch {
+      confidence = 0;
+    }
+  }
 
   // ==========================================
   // UI
@@ -277,14 +268,53 @@ function MoodTransition() {
             {transitions.map(
               (transition, index) => {
 
+                const currentMood =
+                  getMood(transition);
+
+                const nextMood =
+                  transitions[index + 1]
+                    ? getMood(
+                        transitions[index + 1]
+                      )
+                    : currentMood;
+
                 const transitionConfidence =
-                  transition.confidence !==
-                  undefined &&
-                  transition.confidence !== null
+                  transition?.confidence !==
+                    undefined &&
+                  transition?.confidence !==
+                    null
                     ? Number(
                         transition.confidence
                       )
-                    : Number(confidence);
+                    : Number(confidence) || 0;
+
+                /*
+                 * IMPORTANT:
+                 *
+                 * Backend returns:
+                 *
+                 * {
+                 *   start: 0,
+                 *   end: 10,
+                 *   mood: "Happy",
+                 *   confidence: 84
+                 * }
+                 *
+                 * Therefore:
+                 *
+                 * currentMood = current section mood
+                 * nextMood = next section mood
+                 */
+
+                const hasMoodChange =
+                  index <
+                    transitions.length - 1 &&
+                  String(
+                    currentMood
+                  ).toLowerCase() !==
+                    String(
+                      nextMood
+                    ).toLowerCase();
 
                 return (
 
@@ -293,7 +323,7 @@ function MoodTransition() {
                     key={index}
                   >
 
-                    {/* ACTUAL TIME */}
+                    {/* TIME */}
 
                     <div className="transition-time">
 
@@ -304,17 +334,17 @@ function MoodTransition() {
 
                     </div>
 
-                    {/* TRANSITION FLOW */}
+                    {/* MOOD FLOW */}
 
                     <div className="transition-moods">
 
                       <span className="mood-badge">
 
                         {getMoodEmoji(
-                          transition.from
+                          currentMood
                         )}{" "}
 
-                        {transition.from}
+                        {currentMood}
 
                       </span>
 
@@ -325,10 +355,10 @@ function MoodTransition() {
                       <span className="mood-badge">
 
                         {getMoodEmoji(
-                          transition.to
+                          nextMood
                         )}{" "}
 
-                        {transition.to}
+                        {nextMood}
 
                       </span>
 
@@ -338,8 +368,9 @@ function MoodTransition() {
 
                     <p className="transition-description">
 
-                      💡 Emotional features changed
-                      during this analyzed section.
+                      {hasMoodChange
+                        ? "💡 Emotional mood changed between these analyzed sections."
+                        : "💡 Emotional features were analyzed during this section."}
 
                     </p>
 
@@ -375,7 +406,10 @@ function MoodTransition() {
           </span>
 
           <strong>
-            {Number(confidence).toFixed(0)}%
+            {Number(
+              confidence || 0
+            ).toFixed(0)}
+            %
           </strong>
 
         </div>

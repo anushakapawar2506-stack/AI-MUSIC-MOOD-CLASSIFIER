@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -20,19 +21,53 @@ function MoodTimeline() {
       try {
         const data = JSON.parse(savedTimeline);
 
+        console.log(
+          "📈 MOOD TIMELINE DATA:",
+          data
+        );
+
+        /*
+         * Backend returns:
+         *
+         * {
+         *   success: true,
+         *   filename: "...",
+         *   duration: 34.99,
+         *   transitions: [...]
+         * }
+         *
+         * So we must read data.transitions
+         */
+
         if (Array.isArray(data)) {
           setTimeline(data);
+        } else if (Array.isArray(data.transitions)) {
+          setTimeline(data.transitions);
         } else if (Array.isArray(data.timeline)) {
           setTimeline(data.timeline);
         } else if (Array.isArray(data.sections)) {
           setTimeline(data.sections);
+        } else {
+          console.warn(
+            "⚠️ No timeline array found:",
+            data
+          );
+          setTimeline([]);
         }
       } catch (error) {
         console.error(
-          "Error reading moodTransitionData:",
+          "❌ Error reading moodTransitionData:",
           error
         );
+
+        setTimeline([]);
       }
+    } else {
+      console.warn(
+        "⚠️ moodTransitionData not found in localStorage"
+      );
+
+      setTimeline([]);
     }
   }, []);
 
@@ -42,7 +77,7 @@ function MoodTimeline() {
 
   const getMoodIcon = (mood) => {
     const moodName =
-      String(mood).toLowerCase();
+      String(mood || "").toLowerCase();
 
     if (moodName.includes("happy")) {
       return "😊";
@@ -84,6 +119,10 @@ function MoodTimeline() {
     keys,
     fallback = 0
   ) => {
+    if (!section) {
+      return fallback;
+    }
+
     for (const key of keys) {
       if (
         section[key] !== undefined &&
@@ -136,10 +175,10 @@ function MoodTimeline() {
   };
 
   // =========================================================
-  // GET TIMELINE TIME
+  // GET START TIME
   // =========================================================
 
-  const getStartTime = (section) => {
+  const getStartTime = (section, index) => {
     return formatTime(
       getValue(
         section,
@@ -148,10 +187,14 @@ function MoodTimeline() {
           "start_time",
           "startTime"
         ],
-        0
+        index * 10
       )
     );
   };
+
+  // =========================================================
+  // GET END TIME
+  // =========================================================
 
   const getEndTime = (
     section,
@@ -205,7 +248,10 @@ function MoodTimeline() {
     confidence,
     section
   ) => {
-    if (section.intensity) {
+    if (
+      section &&
+      section.intensity
+    ) {
       return section.intensity;
     }
 
@@ -233,12 +279,12 @@ function MoodTimeline() {
 
         const previousMood =
           String(
-            timeline[index - 1].mood
+            timeline[index - 1]?.mood || ""
           ).toLowerCase();
 
         const currentMood =
           String(
-            section.mood
+            section?.mood || ""
           ).toLowerCase();
 
         return previousMood !==
@@ -256,7 +302,7 @@ function MoodTimeline() {
   const journey = timeline
     .map(
       (section) =>
-        section.mood
+        section?.mood
     )
     .filter(Boolean)
     .filter(
@@ -267,6 +313,10 @@ function MoodTimeline() {
             array[index - 1]
           ).toLowerCase()
     );
+
+  // =========================================================
+  // RENDER
+  // =========================================================
 
   return (
     <div className="timeline-page">
@@ -526,7 +576,10 @@ function MoodTimeline() {
                 (section, index) => {
 
                   const startTime =
-                    getStartTime(section);
+                    getStartTime(
+                      section,
+                      index
+                    );
 
                   const endTime =
                     getEndTime(
@@ -535,7 +588,7 @@ function MoodTimeline() {
                     );
 
                   const currentMood =
-                    section.mood ||
+                    section?.mood ||
                     "Unknown";
 
                   const confidence =

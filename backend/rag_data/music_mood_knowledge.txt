@@ -1,0 +1,28 @@
+﻿Music Mood Knowledge Base
+
+Happy Mood:
+Happy music usually has a positive and cheerful emotional character. It can be associated with moderate to high energy, brighter spectral characteristics, and a lively rhythm. Higher tempo and higher energy may support a Happy classification.
+
+Sad Mood:
+Sad music generally has a low or emotionally subdued character. Lower energy, softer dynamics, and slower musical characteristics may support a Sad classification. The final mood should be determined from the complete set of audio features.
+
+Energetic Mood:
+Energetic music usually has strong energy and a lively rhythmic character. Higher tempo, higher RMS energy, and stronger spectral activity can support an Energetic classification.
+
+Relaxed Mood:
+Relaxed music generally has a calm and peaceful character. Lower or moderate energy, smoother dynamics, and slower or moderate tempo may support a Relaxed classification.
+
+Tempo:
+Tempo represents the speed of musical beats and is measured in BPM. Higher BPM can indicate a faster and more active musical character, while lower BPM can indicate a slower and calmer character.
+
+RMS Energy:
+RMS energy represents the overall energy level or loudness characteristics of an audio signal. Higher RMS can indicate stronger musical energy, while lower RMS can indicate softer audio.
+
+Zero Crossing Rate:
+Zero Crossing Rate (ZCR) measures how frequently an audio waveform changes sign. It can provide information about noisiness, sharpness, and some characteristics of the audio signal.
+
+Spectral Centroid:
+Spectral centroid represents the center of gravity of the frequency spectrum. Higher spectral centroid values are often associated with brighter or sharper sounds, while lower values can indicate darker or softer sounds.
+
+Important:
+Audio features should be considered together rather than using a single feature to determine mood. The AI system should explain the predicted mood using the available mood, confidence, intensity, tempo, RMS energy, ZCR, and spectral centroid values.

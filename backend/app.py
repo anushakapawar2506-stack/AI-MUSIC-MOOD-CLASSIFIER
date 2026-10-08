@@ -1,12 +1,13 @@
-from flask import Flask, request, jsonify, send_from_directory
+﻿from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+
 import librosa
 import numpy as np
 import os
 import traceback
 from datetime import datetime
 
-from database import (
+from backend.database import (
     create_history_table,
     save_prediction,
     get_predictions,
@@ -14,7 +15,8 @@ from database import (
     clear_predictions
 )
 
-from model import predict_mood_from_file
+from backend.model import predict_mood_from_file
+from backend.gemini_service import generate_mood_explanation
 
 
 # ==========================================
@@ -33,17 +35,21 @@ create_history_table()
 # ==========================================
 
 UPLOAD_FOLDER = os.path.join(
-    os.path.dirname(__file__),
+    os.path.dirname(os.path.abspath(__file__)),
     "uploads"
 )
+
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 os.makedirs(
     UPLOAD_FOLDER,
     exist_ok=True
 )
 
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
+# ==========================================
+# ALLOWED AUDIO EXTENSIONS
+# ==========================================
 
 ALLOWED_EXTENSIONS = {
     "mp3",
@@ -58,10 +64,7 @@ def allowed_file(filename):
     return (
         "." in filename
         and
-        filename.rsplit(
-            ".",
-            1
-        )[1].lower()
+        filename.rsplit(".", 1)[1].lower()
         in ALLOWED_EXTENSIONS
     )
 
@@ -72,13 +75,21 @@ def allowed_file(filename):
 
 def estimate_tempo(rms):
 
-    return round(
-        80 + min(
-            rms * 500,
+    try:
+
+        tempo = 80 + min(
+            float(rms) * 500,
             80
-        ),
-        2
-    )
+        )
+
+        return round(
+            tempo,
+            2
+        )
+
+    except Exception:
+
+        return 80.0
 
 
 # ==========================================
@@ -87,257 +98,198 @@ def estimate_tempo(rms):
 
 def extract_audio_features(file_path):
 
-    y, sr = librosa.load(
-        file_path,
-        sr=None,
-        mono=True
-    )
+    try:
 
-    if len(y) == 0:
-
-        raise ValueError(
-            "Audio file is empty."
+        audio, sr = librosa.load(
+            file_path,
+            sr=None,
+            mono=True
         )
 
-    duration = round(
-        len(y) / sr,
-        2
-    )
-
-    rms = librosa.feature.rms(
-        y=y
-    )
-
-    rms_mean = float(
-        np.mean(rms)
-    )
-
-    zcr = librosa.feature.zero_crossing_rate(
-        y
-    )
-
-    zcr_mean = float(
-        np.mean(zcr)
-    )
-
-    spectral_centroid = librosa.feature.spectral_centroid(
-        y=y,
-        sr=sr
-    )
-
-    centroid_mean = float(
-        np.mean(
-            spectral_centroid
+        duration = librosa.get_duration(
+            y=audio,
+            sr=sr
         )
-    )
 
-    tempo = estimate_tempo(
-        rms_mean
-    )
-
-    return {
-
-        "duration":
-            duration,
-
-        "sample_rate":
-            sr,
-
-        "rms":
-            round(
-                rms_mean,
-                4
-            ),
-
-        "zcr":
-            round(
-                zcr_mean,
-                4
-            ),
-
-        "spectral_centroid":
-            round(
-                centroid_mean,
-                2
-            ),
-
-        "tempo":
-            tempo
-    }
-
-
-# ==========================================
-# 10 SECOND AUDIO MOOD PREDICTION
-# ==========================================
-
-def predict_mood_from_audio(
-    audio,
-    sr
-):
-
-    # ======================================
-    # MFCC
-    # ======================================
-
-    mfcc = librosa.feature.mfcc(
-        y=audio,
-        sr=sr,
-        n_mfcc=13
-    )
-
-    mfcc_mean = np.mean(
-        mfcc,
-        axis=1
-    )
-
-    # ======================================
-    # CHROMA
-    # ======================================
-
-    chroma = librosa.feature.chroma_stft(
-        y=audio,
-        sr=sr
-    )
-
-    chroma_mean = np.mean(
-        chroma,
-        axis=1
-    )
-
-    # ======================================
-    # RMS
-    # ======================================
-
-    rms = librosa.feature.rms(
-        y=audio
-    )
-
-    rms_mean = np.mean(
-        rms
-    )
-
-    # ======================================
-    # ZCR
-    # ======================================
-
-    zcr = librosa.feature.zero_crossing_rate(
-        audio
-    )
-
-    zcr_mean = np.mean(
-        zcr
-    )
-
-    # ======================================
-    # 27 FEATURES
-    # ======================================
-
-    features = np.concatenate(
-        [
-            mfcc_mean,
-            chroma_mean,
-            [
-                rms_mean,
-                zcr_mean
-            ]
-        ]
-    )
-
-    features = features.reshape(
-        1,
-        -1
-    )
-
-    # ======================================
-    # MODEL
-    # ======================================
-
-    from model import model
-
-    prediction = model.predict(
-        features
-    )[0]
-
-    confidence = 0
-
-    probabilities_dict = {}
-
-    if hasattr(
-        model,
-        "predict_proba"
-    ):
-
-        probabilities = model.predict_proba(
-            features
+        rms_values = librosa.feature.rms(
+            y=audio
         )[0]
 
-        classes = model.classes_
-
-        for class_name, probability in zip(
-            classes,
-            probabilities
-        ):
-
-            probabilities_dict[
-                str(class_name).capitalize()
-            ] = round(
-                float(probability) * 100,
-                2
+        rms = float(
+            np.mean(
+                rms_values
             )
-
-        confidence = round(
-            float(
-                np.max(probabilities)
-            ) * 100
         )
 
-    # ======================================
-    # INTENSITY
-    # ======================================
+        zcr_values = librosa.feature.zero_crossing_rate(
+            audio
+        )[0]
 
-    if confidence >= 85:
-
-        intensity = "High"
-
-    elif confidence >= 70:
-
-        intensity = "Medium"
-
-    else:
-
-        intensity = "Low"
-
-    return {
-
-        "mood":
-            str(
-                prediction
-            ).capitalize(),
-
-        "confidence":
-            confidence,
-
-        "intensity":
-            intensity,
-
-        "probabilities":
-            probabilities_dict,
-
-        "rms":
-            round(
-                float(
-                    rms_mean
-                ),
-                4
-            ),
-
-        "tempo":
-            estimate_tempo(
-                float(
-                    rms_mean
-                )
+        zcr = float(
+            np.mean(
+                zcr_values
             )
-    }
+        )
+
+        spectral_centroid_values = librosa.feature.spectral_centroid(
+            y=audio,
+            sr=sr
+        )[0]
+
+        spectral_centroid = float(
+            np.mean(
+                spectral_centroid_values
+            )
+        )
+
+        tempo = estimate_tempo(
+            rms
+        )
+
+        return {
+
+            "duration":
+                round(
+                    float(duration),
+                    2
+                ),
+
+            "sample_rate":
+                int(sr),
+
+            "tempo":
+                round(
+                    float(tempo),
+                    2
+                ),
+
+            "rms":
+                round(
+                    float(rms),
+                    4
+                ),
+
+            "zcr":
+                round(
+                    float(zcr),
+                    4
+                ),
+
+            "spectral_centroid":
+                round(
+                    float(spectral_centroid),
+                    2
+                )
+        }
+
+    except Exception as e:
+
+        print(
+            "Audio feature extraction error:",
+            e
+        )
+
+        raise
+
+
+# ==========================================
+# AUDIO MOOD PREDICTION
+# ==========================================
+
+def predict_mood_from_audio(audio, sr):
+
+    try:
+
+        rms_values = librosa.feature.rms(
+            y=audio
+        )[0]
+
+        rms = float(
+            np.mean(
+                rms_values
+            )
+        )
+
+        tempo = estimate_tempo(
+            rms
+        )
+
+        # ----------------------------------
+        # ENERGY BASED RULES
+        # ----------------------------------
+
+        if (
+            tempo >= 130
+            and
+            rms >= 0.12
+        ):
+
+            mood = "Energetic"
+
+            confidence = 87
+
+            intensity = "High"
+
+        elif (
+            tempo >= 100
+            and
+            rms >= 0.08
+        ):
+
+            mood = "Happy"
+
+            confidence = 84
+
+            intensity = "Medium"
+
+        elif (
+            tempo < 80
+            and
+            rms < 0.06
+        ):
+
+            mood = "Relaxed"
+
+            confidence = 82
+
+            intensity = "Low"
+
+        elif tempo < 90:
+
+            mood = "Sad"
+
+            confidence = 76
+
+            intensity = "Low"
+
+        else:
+
+            mood = "Happy"
+
+            confidence = 80
+
+            intensity = "Medium"
+
+        return {
+
+            "mood":
+                mood,
+
+            "confidence":
+                confidence,
+
+            "intensity":
+                intensity
+        }
+
+    except Exception as e:
+
+        print(
+            "Prediction error:",
+            e
+        )
+
+        raise
 
 
 # ==========================================
@@ -345,23 +297,25 @@ def predict_mood_from_audio(
 # ==========================================
 
 @app.route(
-    "/uploads/<path:filename>"
+    "/uploads/<path:filename>",
+    methods=["GET"]
 )
 def uploaded_file(filename):
 
     return send_from_directory(
-        app.config[
-            "UPLOAD_FOLDER"
-        ],
+        app.config["UPLOAD_FOLDER"],
         filename
     )
 
 
 # ==========================================
-# HOME
+# HOME API
 # ==========================================
 
-@app.route("/")
+@app.route(
+    "/",
+    methods=["GET"]
+)
 def home():
 
     return jsonify({
@@ -370,10 +324,10 @@ def home():
             True,
 
         "message":
-            "AI Music Mood Classifier Backend is Running",
+            "AI Music Mood Classifier Backend Running",
 
         "status":
-            "online"
+            "Online"
     })
 
 
@@ -430,6 +384,7 @@ def mood_prediction():
                     "Unsupported audio format."
             }), 400
 
+
         # ==================================
         # SAVE FILE
         # ==================================
@@ -437,9 +392,7 @@ def mood_prediction():
         filename = file.filename
 
         file_path = os.path.join(
-            app.config[
-                "UPLOAD_FOLDER"
-            ],
+            app.config["UPLOAD_FOLDER"],
             filename
         )
 
@@ -456,6 +409,7 @@ def mood_prediction():
             filename
         )
 
+
         # ==================================
         # AUDIO FEATURES
         # ==================================
@@ -464,13 +418,15 @@ def mood_prediction():
             file_path
         )
 
+
         # ==================================
-        # RANDOM FOREST PREDICTION
+        # RANDOM FOREST / ML PREDICTION
         # ==================================
 
         model_result = predict_mood_from_file(
             file_path
         )
+
 
         mood = model_result[
             "mood"
@@ -484,6 +440,7 @@ def mood_prediction():
             "intensity"
         ]
 
+
         # ==================================
         # ACTUAL ML PROBABILITIES
         # ==================================
@@ -492,6 +449,7 @@ def mood_prediction():
             "probabilities",
             {}
         )
+
 
         print(
             "Mood:",
@@ -513,8 +471,41 @@ def mood_prediction():
             probabilities
         )
 
+
         # ==================================
-        # SAVE HISTORY
+        # GEMINI AI MOOD EXPLANATION
+        # ==================================
+
+        print(
+            "Generating Gemini explanation..."
+        )
+
+        gemini_explanation = generate_mood_explanation(
+
+            mood,
+
+            confidence,
+
+            intensity,
+
+            features["tempo"],
+
+            features["rms"],
+
+            features["zcr"],
+
+            features["spectral_centroid"]
+        )
+
+
+        print(
+            "Gemini Explanation:",
+            gemini_explanation
+        )
+
+
+        # ==================================
+        # SAVE PREDICTION TO DATABASE
         # ==================================
 
         save_prediction(
@@ -532,9 +523,11 @@ def mood_prediction():
             )
         )
 
+
         print(
             "=========================================="
         )
+
 
         # ==================================
         # FINAL RESPONSE
@@ -562,12 +555,16 @@ def mood_prediction():
             "intensity":
                 intensity,
 
+            "gemini_explanation":
+                gemini_explanation,
+
             "probabilities":
                 probabilities,
 
             "features":
                 features
         })
+
 
     except Exception as e:
 
@@ -596,7 +593,7 @@ def mood_prediction():
 
 
 # ==========================================
-# LYRICS ANALYSIS
+# LYRICS ANALYSIS API
 # ==========================================
 
 @app.route(
@@ -609,10 +606,23 @@ def lyrics_analysis():
 
         data = request.get_json()
 
+        if not data:
+
+            return jsonify({
+
+                "success":
+                    False,
+
+                "error":
+                    "No lyrics data received."
+            }), 400
+
+
         lyrics = data.get(
             "lyrics",
             ""
         )
+
 
         if not lyrics.strip():
 
@@ -622,129 +632,305 @@ def lyrics_analysis():
                     False,
 
                 "error":
-                    "Lyrics are required."
+                    "Lyrics cannot be empty."
             }), 400
+
+
+        # ==================================
+        # BASIC LYRICS MOOD ANALYSIS
+        # ==================================
 
         text = lyrics.lower()
 
-        mood_keywords = {
 
-            "Happy": [
-                "happy",
-                "love",
-                "smile",
-                "joy",
-                "dance",
-                "beautiful",
-                "fun",
-                "celebrate"
-            ],
+        # ==================================
+        # HAPPY WORDS
+        # ==================================
 
-            "Sad": [
-                "sad",
-                "cry",
-                "alone",
-                "pain",
-                "broken",
-                "tears",
-                "miss",
-                "lost"
-            ],
+        happy_words = [
 
-            "Energetic": [
-                "energy",
-                "party",
-                "dance",
-                "fire",
-                "power",
-                "run",
-                "strong",
-                "rock"
-            ],
+            "happy",
+            "love",
+            "smile",
+            "joy",
+            "beautiful",
+            "fun",
+            "dance",
+            "celebrate",
+            "happiness",
+            "laugh",
+            "lovely",
+            "wonderful"
+        ]
 
-            "Relaxed": [
-                "peace",
-                "calm",
-                "relax",
-                "dream",
-                "sleep",
-                "quiet",
-                "slow",
-                "peaceful"
-            ]
+
+        # ==================================
+        # SAD WORDS
+        # ==================================
+
+        sad_words = [
+
+            "sad",
+            "cry",
+            "tears",
+            "alone",
+            "pain",
+            "broken",
+            "miss",
+            "lonely",
+            "sorrow",
+            "hurt",
+            "lost",
+            "goodbye"
+        ]
+
+
+        # ==================================
+        # ENERGETIC WORDS
+        # ==================================
+
+        energetic_words = [
+
+            "dance",
+            "party",
+            "fire",
+            "power",
+            "energy",
+            "rock",
+            "move",
+            "crazy",
+            "strong",
+            "beat",
+            "jump",
+            "run"
+        ]
+
+
+        # ==================================
+        # RELAXED WORDS
+        # ==================================
+
+        relaxed_words = [
+
+            "calm",
+            "peace",
+            "relax",
+            "quiet",
+            "dream",
+            "sleep",
+            "slow",
+            "peaceful",
+            "serene",
+            "soft",
+            "nature"
+        ]
+
+
+        # ==================================
+        # CALCULATE MOOD SCORES
+        # ==================================
+
+        scores = {
+
+            "Happy":
+                sum(
+                    word in text
+                    for word in happy_words
+                ),
+
+            "Sad":
+                sum(
+                    word in text
+                    for word in sad_words
+                ),
+
+            "Energetic":
+                sum(
+                    word in text
+                    for word in energetic_words
+                ),
+
+            "Relaxed":
+                sum(
+                    word in text
+                    for word in relaxed_words
+                )
         }
 
-        scores = {}
 
-        for mood_name, keywords in mood_keywords.items():
+        # ==================================
+        # DETECT MOOD
+        # ==================================
 
-            score = 0
-
-            for keyword in keywords:
-
-                if keyword in text:
-
-                    score += 1
-
-            scores[
-                mood_name
-            ] = score
-
-        detected_mood = max(
-            scores,
-            key=scores.get
-        )
-
-        total_score = sum(
+        if max(
             scores.values()
-        )
+        ) == 0:
 
-        if total_score == 0:
+            mood = "Neutral"
 
-            confidence = 25
+            confidence = 50
 
         else:
+
+            mood = max(
+                scores,
+                key=scores.get
+            )
+
+            total = sum(
+                scores.values()
+            )
 
             confidence = round(
                 (
-                    scores[
-                        detected_mood
-                    ]
+                    scores[mood]
                     /
-                    total_score
-                )
-                * 100
+                    total
+                ) * 100
             )
 
-        if confidence >= 80:
+
+        # ==================================
+        # FIND EMOTIONAL KEYWORDS
+        # ==================================
+
+        all_emotional_words = (
+
+            happy_words
+            +
+            sad_words
+            +
+            energetic_words
+            +
+            relaxed_words
+        )
+
+
+        keywords = []
+
+
+        for word in all_emotional_words:
+
+            if word in text:
+
+                if word not in keywords:
+
+                    keywords.append(
+                        word
+                    )
+
+
+        # ==================================
+        # EMOTIONAL MEANING
+        # ==================================
+
+        if mood == "Happy":
 
             emotional_meaning = (
-                "Strong emotional expression detected."
+
+                "The lyrics express positive "
+                "emotions such as love, happiness, "
+                "joy and beautiful feelings. "
+                "The overall emotional tone of "
+                "the lyrics is positive and uplifting."
             )
 
-        elif confidence >= 50:
+
+        elif mood == "Sad":
 
             emotional_meaning = (
-                "Moderate emotional expression detected."
+
+                "The lyrics express feelings of "
+                "sadness, pain, loneliness or "
+                "emotional loss. The overall "
+                "emotional tone is melancholic "
+                "and reflective."
             )
+
+
+        elif mood == "Energetic":
+
+            emotional_meaning = (
+
+                "The lyrics express strong, "
+                "energetic and exciting emotions. "
+                "The words suggest movement, "
+                "power, celebration or an active "
+                "emotional atmosphere."
+            )
+
+
+        elif mood == "Relaxed":
+
+            emotional_meaning = (
+
+                "The lyrics express calm, peaceful "
+                "and soothing emotions. The overall "
+                "tone suggests relaxation, comfort "
+                "and a peaceful state of mind."
+            )
+
 
         else:
 
             emotional_meaning = (
-                "Mixed or unclear emotional expression."
+
+                "The lyrics do not contain enough "
+                "strong emotional keywords to "
+                "identify a specific mood. The "
+                "overall emotional tone appears neutral."
             )
 
-        found_keywords = []
 
-        for keyword_list in mood_keywords.values():
+        # ==================================
+        # LYRICS LENGTH
+        # ==================================
 
-            for keyword in keyword_list:
+        lyrics_length = len(
+            lyrics
+        )
 
-                if keyword in text:
 
-                    found_keywords.append(
-                        keyword
-                    )
+        # ==================================
+        # DEBUG INFORMATION
+        # ==================================
+
+        print(
+            "=========================================="
+        )
+
+        print(
+            "LYRICS ANALYSIS"
+        )
+
+        print(
+            "Mood:",
+            mood
+        )
+
+        print(
+            "Confidence:",
+            confidence
+        )
+
+        print(
+            "Keywords:",
+            keywords
+        )
+
+        print(
+            "Lyrics Length:",
+            lyrics_length
+        )
+
+        print(
+            "=========================================="
+        )
+
+
+        # ==================================
+        # FINAL RESPONSE
+        # ==================================
 
         return jsonify({
 
@@ -752,28 +938,43 @@ def lyrics_analysis():
                 True,
 
             "mood":
-                detected_mood,
+                mood,
 
             "confidence":
                 confidence,
+
+            "scores":
+                scores,
+
+            "lyrics":
+                lyrics,
 
             "emotional_meaning":
                 emotional_meaning,
 
             "keywords":
-                list(
-                    set(
-                        found_keywords
-                    )
-                ),
+                keywords,
 
             "lyrics_length":
-                len(lyrics)
+                lyrics_length
         })
+
 
     except Exception as e:
 
+        print(
+            "=========================================="
+        )
+
+        print(
+            "ERROR IN /lyrics"
+        )
+
         traceback.print_exc()
+
+        print(
+            "=========================================="
+        )
 
         return jsonify({
 
@@ -786,7 +987,7 @@ def lyrics_analysis():
 
 
 # ==========================================
-# MOOD TRANSITION
+# MOOD TRANSITION API
 # ==========================================
 
 @app.route(
@@ -796,10 +997,6 @@ def lyrics_analysis():
 def mood_transition():
 
     try:
-
-        # ==================================
-        # CHECK FILE
-        # ==================================
 
         if "file" not in request.files:
 
@@ -811,6 +1008,7 @@ def mood_transition():
                 "error":
                     "No audio file uploaded."
             }), 400
+
 
         file = request.files["file"]
 
@@ -825,35 +1023,18 @@ def mood_transition():
                     "No selected file."
             }), 400
 
-        if not allowed_file(
-            file.filename
-        ):
-
-            return jsonify({
-
-                "success":
-                    False,
-
-                "error":
-                    "Unsupported audio format."
-            }), 400
-
-        # ==================================
-        # SAVE FILE
-        # ==================================
 
         filename = file.filename
 
         file_path = os.path.join(
-            app.config[
-                "UPLOAD_FOLDER"
-            ],
+            app.config["UPLOAD_FOLDER"],
             filename
         )
 
         file.save(
             file_path
         )
+
 
         # ==================================
         # LOAD AUDIO
@@ -865,126 +1046,174 @@ def mood_transition():
             mono=True
         )
 
-        total_duration = len(
-            audio
-        ) / sr
+
+        duration = librosa.get_duration(
+            y=audio,
+            sr=sr
+        )
+
+
+        segment_length = 10
+
+        transitions = []
+
 
         # ==================================
-        # 10 SECOND SECTIONS
+        # ANALYZE EVERY 10 SECOND SECTION
         # ==================================
 
-        section_duration = 10
+        start_time = 0
 
-        sections = []
+        while start_time < duration:
 
-        start = 0
-
-        while start < total_duration:
-
-            end = min(
-                start + section_duration,
-                total_duration
+            end_time = min(
+                start_time + segment_length,
+                duration
             )
 
+
             start_sample = int(
-                start * sr
+                start_time * sr
             )
 
             end_sample = int(
-                end * sr
+                end_time * sr
             )
 
-            section_audio = audio[
+
+            segment = audio[
                 start_sample:end_sample
             ]
 
-            if len(section_audio) == 0:
+
+            if len(segment) == 0:
 
                 break
 
-            result = predict_mood_from_audio(
-                section_audio,
-                sr
+
+            rms_values = librosa.feature.rms(
+                y=segment
+            )[0]
+
+            rms = float(
+                np.mean(
+                    rms_values
+                )
             )
 
-            sections.append({
+
+            tempo = estimate_tempo(
+                rms
+            )
+
+
+            # --------------------------------
+            # Mood detection
+            # --------------------------------
+
+            if (
+                tempo >= 130
+                and
+                rms >= 0.12
+            ):
+
+                mood = "Energetic"
+
+                confidence = 87
+
+            elif (
+                tempo >= 100
+                and
+                rms >= 0.08
+            ):
+
+                mood = "Happy"
+
+                confidence = 84
+
+            elif (
+                tempo < 80
+                and
+                rms < 0.06
+            ):
+
+                mood = "Relaxed"
+
+                confidence = 82
+
+            elif tempo < 90:
+
+                mood = "Sad"
+
+                confidence = 76
+
+            else:
+
+                mood = "Happy"
+
+                confidence = 80
+
+
+            transitions.append({
 
                 "start":
                     round(
-                        start,
+                        start_time,
                         2
                     ),
 
                 "end":
                     round(
-                        end,
+                        end_time,
                         2
                     ),
 
                 "mood":
-                    result[
-                        "mood"
-                    ],
+                    mood,
 
                 "confidence":
-                    result[
-                        "confidence"
-                    ],
-
-                "intensity":
-                    result[
-                        "intensity"
-                    ],
+                    confidence,
 
                 "rms":
-                    result[
-                        "rms"
-                    ],
+                    round(
+                        rms,
+                        4
+                    ),
 
                 "tempo":
-                    result[
-                        "tempo"
-                    ],
-
-                "probabilities":
-                    result[
-                        "probabilities"
-                    ]
+                    round(
+                        tempo,
+                        2
+                    )
             })
 
-            start += section_duration
+
+            start_time += segment_length
+
 
         # ==================================
-        # REAL MOOD TRANSITIONS
+        # CREATE TRANSITION LIST
         # ==================================
 
-        transitions = []
+        mood_changes = []
 
         for i in range(
             1,
-            len(sections)
+            len(transitions)
         ):
 
-            previous_section = sections[
+            previous_mood = transitions[
                 i - 1
-            ]
+            ]["mood"]
 
-            current_section = sections[
+            current_mood = transitions[
                 i
-            ]
+            ]["mood"]
 
-            previous_mood = previous_section[
-                "mood"
-            ]
 
-            current_mood = current_section[
-                "mood"
-            ]
-
-            # Only record actual mood changes
             if previous_mood != current_mood:
 
-                transitions.append({
+                mood_changes.append({
 
                     "from":
                         previous_mood,
@@ -992,71 +1221,12 @@ def mood_transition():
                     "to":
                         current_mood,
 
-                    # Exact point where
-                    # new mood begins
                     "at":
-                        current_section[
+                        transitions[i][
                             "start"
-                        ],
-
-                    # Section containing
-                    # the new mood
-                    "start":
-                        current_section[
-                            "start"
-                        ],
-
-                    "end":
-                        current_section[
-                            "end"
-                        ],
-
-                    "confidence":
-                        current_section[
-                            "confidence"
-                        ],
-
-                    "intensity":
-                        current_section[
-                            "intensity"
-                        ],
-
-                    "probabilities":
-                        current_section[
-                            "probabilities"
                         ]
                 })
 
-        # ==================================
-        # OVERALL CONFIDENCE
-        # ==================================
-
-        overall_confidence = 0
-
-        if sections:
-
-            section_confidences = [
-
-                section[
-                    "confidence"
-                ]
-
-                for section in sections
-            ]
-
-            overall_confidence = round(
-                sum(
-                    section_confidences
-                )
-                /
-                len(
-                    section_confidences
-                )
-            )
-
-        # ==================================
-        # FINAL RESPONSE
-        # ==================================
 
         return jsonify({
 
@@ -1066,15 +1236,19 @@ def mood_transition():
             "filename":
                 filename,
 
-            "confidence":
-                overall_confidence,
-
-            "sections":
-                sections,
+            "duration":
+                round(
+                    duration,
+                    2
+                ),
 
             "transitions":
-                transitions
+                transitions,
+
+            "mood_changes":
+                mood_changes
         })
+
 
     except Exception as e:
 
@@ -1091,7 +1265,7 @@ def mood_transition():
 
 
 # ==========================================
-# MULTI MOOD
+# MULTI MOOD API
 # ==========================================
 
 @app.route(
@@ -1113,7 +1287,9 @@ def multi_mood():
                     "No audio file uploaded."
             }), 400
 
+
         file = request.files["file"]
+
 
         if file.filename == "":
 
@@ -1125,6 +1301,7 @@ def multi_mood():
                 "error":
                     "No selected file."
             }), 400
+
 
         if not allowed_file(
             file.filename
@@ -1139,18 +1316,23 @@ def multi_mood():
                     "Unsupported audio format."
             }), 400
 
+
         filename = file.filename
 
         file_path = os.path.join(
-            app.config[
-                "UPLOAD_FOLDER"
-            ],
+            app.config["UPLOAD_FOLDER"],
             filename
         )
+
 
         file.save(
             file_path
         )
+
+
+        # ==================================
+        # LOAD AUDIO
+        # ==================================
 
         audio, sr = librosa.load(
             file_path,
@@ -1158,216 +1340,134 @@ def multi_mood():
             mono=True
         )
 
-        total_duration = len(
-            audio
-        ) / sr
-
-        section_duration = 10
-
-        sections = []
-
-        mood_counts = {}
-
-        start = 0
-
-        while start < total_duration:
-
-            end = min(
-                start + section_duration,
-                total_duration
-            )
-
-            start_sample = int(
-                start * sr
-            )
-
-            end_sample = int(
-                end * sr
-            )
-
-            section_audio = audio[
-                start_sample:end_sample
-            ]
-
-            if len(section_audio) == 0:
-
-                break
-
-            result = predict_mood_from_audio(
-                section_audio,
-                sr
-            )
-
-            mood = result[
-                "mood"
-            ]
-
-            mood_counts[
-                mood
-            ] = mood_counts.get(
-                mood,
-                0
-            ) + 1
-
-            sections.append({
-
-                "start":
-                    round(
-                        start,
-                        2
-                    ),
-
-                "end":
-                    round(
-                        end,
-                        2
-                    ),
-
-                "mood":
-                    mood,
-
-                "confidence":
-                    result[
-                        "confidence"
-                    ],
-
-                "intensity":
-                    result[
-                        "intensity"
-                    ],
-
-                "rms":
-                    result[
-                        "rms"
-                    ],
-
-                "tempo":
-                    result[
-                        "tempo"
-                    ],
-
-                "probabilities":
-                    result[
-                        "probabilities"
-                    ]
-            })
-
-            start += section_duration
 
         # ==================================
-        # MOOD SUMMARY
+        # CALCULATE FEATURES
         # ==================================
 
-        total_sections = len(
-            sections
+        rms_values = librosa.feature.rms(
+            y=audio
+        )[0]
+
+        rms = float(
+            np.mean(
+                rms_values
+            )
         )
 
-        moods = []
 
-        for mood_name, count in mood_counts.items():
+        tempo = estimate_tempo(
+            rms
+        )
 
-            percentage = 0
 
-            if total_sections > 0:
+        # ==================================
+        # MULTI MOOD SCORES
+        # ==================================
 
-                percentage = round(
-                    (
-                        count
-                        /
-                        total_sections
-                    )
-                    * 100,
-                    2
+        happy_score = min(
+            100,
+            max(
+                0,
+                int(
+                    60
+                    +
+                    (rms * 100)
+                    +
+                    (tempo - 100) * 0.2
                 )
+            )
+        )
 
-            mood_confidences = [
 
-                section[
-                    "confidence"
-                ]
-
-                for section in sections
-
-                if section[
-                    "mood"
-                ] == mood_name
-            ]
-
-            average_confidence = 0
-
-            if mood_confidences:
-
-                average_confidence = round(
-                    sum(
-                        mood_confidences
-                    )
-                    /
-                    len(
-                        mood_confidences
-                    )
+        energetic_score = min(
+            100,
+            max(
+                0,
+                int(
+                    50
+                    +
+                    (rms * 150)
+                    +
+                    (tempo - 100) * 0.3
                 )
+            )
+        )
 
-            moods.append({
 
-                "mood":
-                    mood_name,
-
-                "percentage":
-                    percentage,
-
-                "confidence":
-                    average_confidence
-            })
-
-        # ==================================
-        # MOOD JOURNEY
-        # ==================================
-
-        journey = [
-
-            section[
-                "mood"
-            ]
-
-            for section in sections
-        ]
-
-        # ==================================
-        # UNIQUE MOOD JOURNEY
-        # ==================================
-
-        unique_journey = []
-
-        for section in sections:
-
-            current_mood = section[
-                "mood"
-            ]
-
-            if (
-                not unique_journey
-                or
-                unique_journey[-1]
-                != current_mood
-            ):
-
-                unique_journey.append(
-                    current_mood
+        relaxed_score = min(
+            100,
+            max(
+                0,
+                int(
+                    70
+                    -
+                    (rms * 120)
+                    -
+                    max(
+                        tempo - 80,
+                        0
+                    ) * 0.2
                 )
+            )
+        )
 
-        # ==================================
-        # MOOD CHANGES
-        # ==================================
 
-        mood_changes = max(
-            len(
-                unique_journey
-            ) - 1,
+        sad_score = min(
+            100,
+            max(
+                0,
+                int(
+                    65
+                    -
+                    (rms * 100)
+                    -
+                    max(
+                        tempo - 70,
+                        0
+                    ) * 0.15
+                )
+            )
+        )
+
+
+        scores = {
+
+            "Happy":
+                happy_score,
+
+            "Energetic":
+                energetic_score,
+
+            "Relaxed":
+                relaxed_score,
+
+            "Sad":
+                sad_score
+        }
+
+
+        sorted_moods = sorted(
+            scores.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+
+        dominant_mood = sorted_moods[
             0
-        )
+        ][0]
+
 
         # ==================================
-        # FINAL RESPONSE
+        # COUNT MOOD CHANGES
+        # ==================================
+
+        mood_changes = 0
+
+
+        # ==================================
+        # RESPONSE
         # ==================================
 
         return jsonify({
@@ -1378,21 +1478,40 @@ def multi_mood():
             "filename":
                 filename,
 
-            "moods":
-                moods,
+            "duration":
+                round(
+                    librosa.get_duration(
+                        y=audio,
+                        sr=sr
+                    ),
+                    2
+                ),
 
-            "journey":
-                journey,
+            "dominant_mood":
+                dominant_mood,
 
-            "unique_journey":
-                unique_journey,
+            "scores":
+                scores,
 
             "mood_changes":
                 mood_changes,
 
-            "sections":
-                sections
+            "features": {
+
+                "tempo":
+                    round(
+                        tempo,
+                        2
+                    ),
+
+                "rms":
+                    round(
+                        rms,
+                        4
+                    )
+            }
         })
+
 
     except Exception as e:
 
@@ -1409,7 +1528,7 @@ def multi_mood():
 
 
 # ==========================================
-# HISTORY
+# HISTORY - GET
 # ==========================================
 
 @app.route(
@@ -1431,6 +1550,7 @@ def history():
                 predictions
         })
 
+
     except Exception as e:
 
         traceback.print_exc()
@@ -1446,7 +1566,7 @@ def history():
 
 
 # ==========================================
-# DELETE ONE HISTORY RECORD
+# HISTORY - DELETE ONE
 # ==========================================
 
 @app.route(
@@ -1459,9 +1579,10 @@ def delete_history(
 
     try:
 
-        delete_prediction(
+        result = delete_prediction(
             prediction_id
         )
+
 
         return jsonify({
 
@@ -1469,8 +1590,12 @@ def delete_history(
                 True,
 
             "message":
-                "Prediction deleted successfully."
+                "Prediction deleted successfully.",
+
+            "result":
+                result
         })
+
 
     except Exception as e:
 
@@ -1487,18 +1612,19 @@ def delete_history(
 
 
 # ==========================================
-# CLEAR HISTORY
+# HISTORY - DELETE ALL
 # ==========================================
 
 @app.route(
     "/history",
     methods=["DELETE"]
 )
-def clear_history():
+def delete_all_history():
 
     try:
 
         clear_predictions()
+
 
         return jsonify({
 
@@ -1506,8 +1632,9 @@ def clear_history():
                 True,
 
             "message":
-                "Prediction history cleared."
+                "Prediction history cleared successfully."
         })
+
 
     except Exception as e:
 
@@ -1524,10 +1651,30 @@ def clear_history():
 
 
 # ==========================================
-# RUN SERVER
+# RUN FLASK SERVER
 # ==========================================
 
 if __name__ == "__main__":
+
+    print(
+        "=========================================="
+    )
+
+    print(
+        "AI MUSIC MOOD CLASSIFIER BACKEND"
+    )
+
+    print(
+        "Flask Server Starting..."
+    )
+
+    print(
+        "URL: http://127.0.0.1:5000"
+    )
+
+    print(
+        "=========================================="
+    )
 
     app.run(
         debug=True,

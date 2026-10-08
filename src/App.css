@@ -9923,3 +9923,692 @@ a {
     gap: 7px;
   }
 }
+
+/* =====================================================
+   LYRICS ANALYSIS - PROFESSIONAL UI
+===================================================== */
+
+.lyrics-page {
+  min-height: 100vh;
+  padding: 40px 20px 70px;
+  background: linear-gradient(
+    135deg,
+    #f5f7ff 0%,
+    #eef1ff 50%,
+    #f8f9ff 100%
+  );
+}
+
+.lyrics-container {
+  width: 100%;
+  max-width: 1050px;
+  margin: 0 auto;
+}
+
+/* =====================================================
+   BACK LINK
+===================================================== */
+
+.lyrics-page .back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 30px;
+  padding: 11px 18px;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #4f46a5;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 5px 18px rgba(80, 70, 150, 0.08);
+  transition: all 0.25s ease;
+}
+
+.lyrics-page .back-link:hover {
+  transform: translateX(-4px);
+  box-shadow: 0 9px 24px rgba(80, 70, 150, 0.15);
+}
+
+/* =====================================================
+   HEADER
+===================================================== */
+
+.lyrics-header {
+  text-align: center;
+  margin-bottom: 35px;
+}
+
+.lyrics-icon {
+  width: 76px;
+  height: 76px;
+  margin: 0 auto 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 23px;
+
+  background: linear-gradient(
+    135deg,
+    #667eea,
+    #764ba2
+  );
+
+  color: #ffffff;
+  font-size: 36px;
+
+  box-shadow:
+    0 12px 30px rgba(102, 126, 234, 0.28);
+}
+
+.lyrics-header h1 {
+  margin: 0 0 10px;
+
+  color: #20244a;
+
+  font-size: 38px;
+  font-weight: 800;
+
+  letter-spacing: -0.5px;
+}
+
+.lyrics-header p {
+  margin: 0;
+
+  color: #70758f;
+
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+/* =====================================================
+   SONG CARD
+===================================================== */
+
+.lyrics-song-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+
+  margin-bottom: 25px;
+  padding: 22px;
+
+  border: 1px solid #e7e9f7;
+  border-radius: 20px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 10px 30px rgba(40, 45, 100, 0.08);
+}
+
+.lyrics-song-icon {
+  width: 58px;
+  height: 58px;
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 17px;
+
+  background: linear-gradient(
+    135deg,
+    #eef0ff,
+    #f7efff
+  );
+
+  font-size: 28px;
+}
+
+.lyrics-song-card span {
+  display: block;
+
+  margin-bottom: 6px;
+
+  color: #858aa5;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  letter-spacing: 1px;
+}
+
+.lyrics-song-card h2 {
+  margin: 0;
+
+  color: #292d52;
+
+  font-size: 17px;
+  font-weight: 700;
+
+  word-break: break-word;
+  line-height: 1.45;
+}
+
+/* =====================================================
+   MAIN LYRICS CARD
+===================================================== */
+
+.lyrics-card {
+  padding: 32px;
+
+  border: 1px solid rgba(102, 126, 234, 0.08);
+  border-radius: 24px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 15px 45px rgba(40, 45, 100, 0.10);
+}
+
+.lyrics-card h2 {
+  margin: 0 0 8px;
+
+  color: #292d52;
+
+  font-size: 23px;
+  font-weight: 800;
+}
+
+.lyrics-description {
+  margin: 0 0 20px;
+
+  color: #777c95;
+
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* =====================================================
+   TEXTAREA
+===================================================== */
+
+.lyrics-textarea {
+  width: 100%;
+  min-height: 270px;
+
+  box-sizing: border-box;
+
+  padding: 20px;
+
+  resize: vertical;
+
+  border: 2px solid #e3e5f2;
+  border-radius: 18px;
+
+  outline: none;
+
+  background: #fbfbff;
+
+  color: #292d52;
+
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.75;
+
+  transition: all 0.25s ease;
+}
+
+.lyrics-textarea::placeholder {
+  color: #a1a5ba;
+}
+
+.lyrics-textarea:hover {
+  border-color: #cfd3ea;
+}
+
+.lyrics-textarea:focus {
+  border-color: #667eea;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 0 0 4px rgba(102, 126, 234, 0.10);
+}
+
+/* =====================================================
+   ANALYZE BUTTON
+===================================================== */
+
+.analyze-lyrics-btn {
+  width: 100%;
+
+  margin-top: 22px;
+  padding: 16px 24px;
+
+  border: none;
+  border-radius: 15px;
+
+  background: linear-gradient(
+    135deg,
+    #667eea,
+    #764ba2
+  );
+
+  color: #ffffff;
+
+  font-size: 16px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 10px 25px rgba(102, 126, 234, 0.25);
+
+  transition: all 0.25s ease;
+}
+
+.analyze-lyrics-btn:hover {
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 14px 30px rgba(102, 126, 234, 0.32);
+}
+
+.analyze-lyrics-btn:active {
+  transform: translateY(0);
+}
+
+.analyze-lyrics-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* =====================================================
+   ERROR
+===================================================== */
+
+.lyrics-error {
+  margin-top: 18px;
+  padding: 14px 17px;
+
+  border: 1px solid #ffd4d4;
+  border-radius: 13px;
+
+  background: #fff5f5;
+
+  color: #c0392b;
+
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* =====================================================
+   RESULT CARD
+===================================================== */
+
+.lyrics-result-card {
+  margin-top: 28px;
+  padding: 32px;
+
+  border: 1px solid rgba(102, 126, 234, 0.10);
+  border-radius: 24px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 15px 45px rgba(40, 45, 100, 0.10);
+}
+
+/* =====================================================
+   RESULT TITLE
+===================================================== */
+
+.lyrics-result-title {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+
+  padding-bottom: 22px;
+  margin-bottom: 22px;
+
+  border-bottom: 1px solid #eeeeF7;
+}
+
+.lyrics-result-title > span {
+  width: 52px;
+  height: 52px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 15px;
+
+  background: #eef0ff;
+
+  font-size: 25px;
+}
+
+.lyrics-result-title h2 {
+  margin: 0 0 4px;
+
+  color: #292d52;
+
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.lyrics-result-title p {
+  margin: 0;
+
+  color: #858aa5;
+
+  font-size: 13px;
+}
+
+/* =====================================================
+   MOOD RESULT
+===================================================== */
+
+.lyrics-mood-result {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+
+  padding: 22px;
+
+  border-radius: 18px;
+
+  background: linear-gradient(
+    135deg,
+    #f6f7ff,
+    #faf7ff
+  );
+}
+
+.lyrics-mood-icon {
+  width: 64px;
+  height: 64px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 18px;
+
+  background: #ffffff;
+
+  font-size: 32px;
+
+  box-shadow:
+    0 6px 18px rgba(60, 65, 130, 0.08);
+}
+
+.lyrics-mood-result span {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color: #858aa5;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  letter-spacing: 1px;
+}
+
+.lyrics-mood-result h2 {
+  margin: 0;
+
+  color: #292d52;
+
+  font-size: 25px;
+  font-weight: 800;
+}
+
+/* =====================================================
+   STATS
+===================================================== */
+
+.lyrics-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+
+  gap: 18px;
+
+  margin-top: 20px;
+}
+
+.lyrics-stat {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+
+  padding: 20px;
+
+  border: 1px solid #e9eaf5;
+  border-radius: 17px;
+
+  background: #fbfbff;
+}
+
+.lyrics-stat > span {
+  font-size: 25px;
+}
+
+.lyrics-stat small {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color: #858aa5;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lyrics-stat strong {
+  color: #292d52;
+
+  font-size: 20px;
+  font-weight: 800;
+}
+
+/* =====================================================
+   EMOTIONAL MEANING
+===================================================== */
+
+.lyrics-emotion-box {
+  margin-top: 22px;
+  padding: 23px;
+
+  border-left: 4px solid #667eea;
+  border-radius: 16px;
+
+  background: #f6f7ff;
+}
+
+.lyrics-emotion-box h3 {
+  margin: 0 0 10px;
+
+  color: #34385e;
+
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.lyrics-emotion-box p {
+  margin: 0;
+
+  color: #656a84;
+
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+/* =====================================================
+   KEYWORDS
+===================================================== */
+
+.lyrics-keywords {
+  margin-top: 24px;
+}
+
+.lyrics-keywords h3 {
+  margin: 0 0 14px;
+
+  color: #34385e;
+
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.keyword-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.keyword-tag {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 8px 14px;
+
+  border: 1px solid #dddff1;
+  border-radius: 30px;
+
+  background: #f7f7ff;
+
+  color: #555a78;
+
+  font-size: 13px;
+  font-weight: 650;
+}
+
+/* =====================================================
+   LYRICS LENGTH
+===================================================== */
+
+.lyrics-length {
+  margin-top: 24px;
+  padding-top: 18px;
+
+  border-top: 1px solid #eeeeF7;
+
+  color: #777c95;
+
+  font-size: 13px;
+}
+
+.lyrics-length strong {
+  color: #4f46a5;
+}
+
+/* =====================================================
+   BOTTOM ACTION
+===================================================== */
+
+.lyrics-actions {
+  display: flex;
+  justify-content: center;
+
+  margin-top: 28px;
+}
+
+.lyrics-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 13px 24px;
+
+  border-radius: 13px;
+
+  background: #ffffff;
+
+  border: 1px solid #dddff0;
+
+  color: #4f46a5;
+
+  text-decoration: none;
+
+  font-size: 14px;
+  font-weight: 750;
+
+  transition: all 0.25s ease;
+}
+
+.lyrics-back-btn:hover {
+  transform: translateY(-2px);
+
+  border-color: #667eea;
+
+  box-shadow:
+    0 8px 20px rgba(102, 126, 234, 0.12);
+}
+
+/* =====================================================
+   RESPONSIVE
+===================================================== */
+
+@media (max-width: 768px) {
+
+  .lyrics-page {
+    padding: 25px 15px 50px;
+  }
+
+  .lyrics-header h1 {
+    font-size: 30px;
+  }
+
+  .lyrics-card,
+  .lyrics-result-card {
+    padding: 22px;
+    border-radius: 20px;
+  }
+
+  .lyrics-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .lyrics-textarea {
+    min-height: 220px;
+  }
+}
+
+@media (max-width: 480px) {
+
+  .lyrics-header h1 {
+    font-size: 27px;
+  }
+
+  .lyrics-header p {
+    font-size: 14px;
+  }
+
+  .lyrics-icon {
+    width: 62px;
+    height: 62px;
+    font-size: 29px;
+  }
+
+  .lyrics-song-card {
+    align-items: flex-start;
+    padding: 17px;
+  }
+
+  .lyrics-song-card h2 {
+    font-size: 14px;
+  }
+
+  .lyrics-card,
+  .lyrics-result-card {
+    padding: 17px;
+  }
+
+  .lyrics-textarea {
+    min-height: 190px;
+    padding: 15px;
+  }
+
+  .lyrics-mood-result {
+    padding: 17px;
+  }
+}
