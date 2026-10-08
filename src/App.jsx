@@ -19,7 +19,7 @@ import Feedback from "./pages/Feedback";
 
 function App() {
   return (
-    <BrowserRouter basename="/AI-MUSIC-MOOD-CLASSIFIER">
+    <BrowserRouter>
       <Routes>
 
         <Route path="/" element={<Login />} />
