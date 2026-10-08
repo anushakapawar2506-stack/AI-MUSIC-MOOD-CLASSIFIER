@@ -1,0 +1,14 @@
+Flask
+flask-cors
+numpy
+pandas
+scikit-learn
+librosa
+joblib
+python-dotenv
+google-generativeai
+langchain
+langchain-google-genai
+langchain-community
+chromadb
+pypdf
