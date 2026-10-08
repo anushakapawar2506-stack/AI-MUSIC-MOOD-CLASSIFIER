@@ -3,7 +3,7 @@ import os
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from backend.rag_service import retrieve_music_knowledge
+from rag_service import retrieve_music_knowledge
 
 load_dotenv()
 

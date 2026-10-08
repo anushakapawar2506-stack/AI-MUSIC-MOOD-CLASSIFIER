@@ -13,3 +13,5 @@ langchain-community
 chromadb
 pypdf
 gunicorn
+langchain-chroma
+langchain-text-splitters
