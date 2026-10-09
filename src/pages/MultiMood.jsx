@@ -2,6 +2,191 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+// ------------------------------------------
+// Read a mood label from different API formats
+// ------------------------------------------
+function getMood(item) {
+  if (typeof item === "string") {
+    return item.trim();
+  }
+
+  if (!item || typeof item !== "object") {
+    return "";
+  }
+
+  const value =
+    item.mood ??
+    item.predicted_mood ??
+    item.predictedMood ??
+    item.detected_mood ??
+    item.detectedMood ??
+    item.dominant_mood ??
+    item.dominantMood ??
+    item.emotion ??
+    item.label ??
+    item.prediction;
+
+  return typeof value === "string" ? value.trim() : "";
+}
+
+// ------------------------------------------
+// Find chronological sections in API data
+// ------------------------------------------
+function findSections(root) {
+  const preferredKeys = [
+    "sections",
+    "segments",
+    "timeline",
+    "mood_timeline",
+    "moodTimeline",
+    "results",
+  ];
+
+  const visited = new Set();
+
+  function search(value, depth = 0) {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      depth > 6 ||
+      visited.has(value)
+    ) {
+      return null;
+    }
+
+    visited.add(value);
+
+    if (Array.isArray(value)) {
+      const moods = value.map(getMood);
+
+      if (
+        value.length >= 2 &&
+        moods.every((mood) => mood.length > 0)
+      ) {
+        return value;
+      }
+
+      for (const item of value) {
+        const found = search(item, depth + 1);
+        if (found) return found;
+      }
+
+      return null;
+    }
+
+    for (const key of preferredKeys) {
+      if (key in value) {
+        const found = search(value[key], depth + 1);
+        if (found) return found;
+      }
+    }
+
+    for (const child of Object.values(value)) {
+      const found = search(child, depth + 1);
+      if (found) return found;
+    }
+
+    return null;
+  }
+
+  return search(root);
+}
+
+// ------------------------------------------
+// Count actual chronological mood changes
+// ------------------------------------------
+function countMoodChanges(sections) {
+  if (!Array.isArray(sections) || sections.length < 2) {
+    return null;
+  }
+
+  const moods = sections.map(getMood);
+
+  // Do not calculate a potentially incorrect count
+  // when any chronological section has no mood label.
+  if (moods.some((mood) => !mood)) {
+    return null;
+  }
+
+  let changes = 0;
+
+  for (let i = 1; i < moods.length; i++) {
+    if (
+      moods[i].toLowerCase() !==
+      moods[i - 1].toLowerCase()
+    ) {
+      changes++;
+    }
+  }
+
+  return changes;
+}
+
+// ------------------------------------------
+// Read stored JSON safely
+// ------------------------------------------
+function readStoredJSON(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    console.warn(`Unable to read ${key}:`, error);
+    return null;
+  }
+}
+
+// ------------------------------------------
+// Read an explicit chronological change count
+// from timeline/transition data only
+// ------------------------------------------
+function findExplicitChangeCount(data, depth = 0) {
+  if (
+    !data ||
+    typeof data !== "object" ||
+    depth > 5
+  ) {
+    return null;
+  }
+
+  const countKeys = [
+    "mood_changes",
+    "moodChanges",
+    "total_mood_changes",
+    "totalMoodChanges",
+    "change_count",
+    "changeCount",
+  ];
+
+  for (const key of countKeys) {
+    const value = data[key];
+
+    if (
+      value !== null &&
+      value !== undefined &&
+      value !== "" &&
+      Number.isInteger(Number(value)) &&
+      Number(value) >= 0
+    ) {
+      return Number(value);
+    }
+  }
+
+  // Check common nested response objects.
+  for (const key of ["data", "result", "analysis"]) {
+    const found = findExplicitChangeCount(
+      data[key],
+      depth + 1
+    );
+
+    if (found !== null) return found;
+  }
+
+  return null;
+}
+
+// ------------------------------------------
+// Multi-Mood Page
+// ------------------------------------------
 function MultiMood() {
   const [songName, setSongName] = useState("Uploaded Song");
   const [moods, setMoods] = useState([]);
@@ -20,16 +205,11 @@ function MultiMood() {
       // ------------------------------------------
       // 1. Read Multi-Mood scores
       // ------------------------------------------
-      const savedMultiMoodData =
-        localStorage.getItem("multiMoodData");
+      const multiMoodData = readStoredJSON("multiMoodData");
 
-      let multiMoodData = null;
+      console.log("MULTI-MOOD DATA:", multiMoodData);
 
-      if (savedMultiMoodData) {
-        multiMoodData = JSON.parse(savedMultiMoodData);
-
-        console.log("MULTI-MOOD DATA:", multiMoodData);
-
+      if (multiMoodData) {
         const scores =
           multiMoodData.scores ??
           multiMoodData.moods ??
@@ -62,203 +242,144 @@ function MultiMood() {
       }
 
       // ------------------------------------------
-      // 2. Read chronological Mood Transition data
+      // 2. Read chronological timeline data
       // ------------------------------------------
-      const savedTransitionData =
-        localStorage.getItem("moodTransitionData");
+      const dataSources = [
+        {
+          key: "moodTransitionData",
+          data: readStoredJSON("moodTransitionData"),
+        },
+        {
+          key: "moodTimelineData",
+          data: readStoredJSON("moodTimelineData"),
+        },
+      ].filter((item) => item.data);
 
-      let transitionData = null;
       let calculatedChanges = null;
 
-      if (savedTransitionData) {
-        transitionData = JSON.parse(savedTransitionData);
+      console.log("CHRONOLOGICAL DATA SOURCES:", dataSources);
 
-        console.log("MOOD TRANSITION DATA:", transitionData);
+      // Prefer the actual section sequence.
+      for (const source of dataSources) {
+        const sections = findSections(source.data);
+
+        if (sections) {
+          const count = countMoodChanges(sections);
+
+          if (count !== null) {
+            calculatedChanges = count;
+
+            console.log(
+              "Timeline source:",
+              source.key,
+              sections.map(getMood)
+            );
+
+            console.log("Calculated Mood Changes:", count);
+            break;
+          }
+        }
       }
 
-      if (
-        transitionData &&
-        typeof transitionData === "object"
-      ) {
-        // Support common response formats.
-        const possibleSectionArrays = [
-          transitionData.sections,
-          transitionData.segments,
-          transitionData.timeline,
-          transitionData.mood_timeline,
-          transitionData.moodTimeline,
-          transitionData.results,
-        ];
+      // ------------------------------------------
+      // 3. Fallback: explicit count returned by
+      // timeline/transition API, not multi-mood scores
+      // ------------------------------------------
+      if (calculatedChanges === null) {
+        for (const source of dataSources) {
+          const count = findExplicitChangeCount(source.data);
 
-        let sections = possibleSectionArrays.find(
+          if (count !== null) {
+            calculatedChanges = count;
+
+            console.log(
+              "Using API chronological change count:",
+              source.key,
+              count
+            );
+
+            break;
+          }
+        }
+      }
+
+      // ------------------------------------------
+      // 4. Fallback: explicit transition pairs
+      // ------------------------------------------
+      if (calculatedChanges === null) {
+        const source = dataSources.find(
+          (item) => item.key === "moodTransitionData"
+        );
+
+        const data = source?.data;
+
+        const transitions = [
+          data?.transitions,
+          data?.mood_transitions,
+          data?.moodTransitions,
+          data?.data?.transitions,
+        ].find(
           (value) => Array.isArray(value) && value.length > 0
         );
 
-        // Some APIs nest the chronological data.
-        if (!sections && transitionData.data) {
-          const nested = transitionData.data;
+        if (transitions) {
+          const pairs = transitions
+            .map((item) => {
+              if (!item || typeof item !== "object") {
+                return null;
+              }
 
-          if (Array.isArray(nested)) {
-            sections = nested;
-          } else if (typeof nested === "object") {
-            sections =
-              nested.sections ??
-              nested.segments ??
-              nested.timeline ??
-              nested.mood_timeline ??
-              nested.moodTimeline;
-          }
-        }
+              const from =
+                item.from_mood ??
+                item.fromMood ??
+                item.from ??
+                item.previous_mood ??
+                item.previousMood;
 
-        const getMood = (item) => {
-          if (typeof item === "string") {
-            return item.trim();
-          }
+              const to =
+                item.to_mood ??
+                item.toMood ??
+                item.to ??
+                item.next_mood ??
+                item.nextMood ??
+                item.current_mood ??
+                item.currentMood;
 
-          if (!item || typeof item !== "object") {
-            return "";
-          }
+              if (
+                typeof from !== "string" ||
+                typeof to !== "string"
+              ) {
+                return null;
+              }
 
-          const value =
-            item.mood ??
-            item.predicted_mood ??
-            item.predictedMood ??
-            item.detected_mood ??
-            item.detectedMood ??
-            item.dominant_mood ??
-            item.dominantMood ??
-            item.emotion ??
-            item.label ??
-            item.prediction;
-
-          return typeof value === "string" ? value.trim() : "";
-        };
-
-        if (Array.isArray(sections) && sections.length > 0) {
-          const chronologicalMoods = sections
-            .map(getMood)
+              return {
+                from: from.trim(),
+                to: to.trim(),
+              };
+            })
             .filter(Boolean);
 
-          if (chronologicalMoods.length > 0) {
-            calculatedChanges = 0;
-
-            for (
-              let index = 1;
-              index < chronologicalMoods.length;
-              index++
-            ) {
-              const previous =
-                chronologicalMoods[index - 1].toLowerCase();
-
-              const current =
-                chronologicalMoods[index].toLowerCase();
-
-              if (previous !== current) {
-                calculatedChanges++;
-              }
-            }
-
-            console.log(
-              "Chronological moods:",
-              chronologicalMoods
-            );
-
-            console.log(
-              "Calculated mood changes:",
-              calculatedChanges
-            );
-          }
-        }
-
-        // Fallback: count changes from explicit transition pairs.
-        // Use this only when section/timeline data is unavailable.
-        if (calculatedChanges === null) {
-          const possibleTransitionArrays = [
-            transitionData.transitions,
-            transitionData.mood_transitions,
-            transitionData.moodTransitions,
-          ];
-
-          let transitions = possibleTransitionArrays.find(
-            (value) => Array.isArray(value) && value.length > 0
-          );
-
-          if (!transitions && Array.isArray(transitionData.data)) {
-            transitions = transitionData.data;
-          }
-
-          if (Array.isArray(transitions) && transitions.length > 0) {
-            const pairs = transitions
-              .map((item) => {
-                if (!item || typeof item !== "object") {
-                  return null;
-                }
-
-                const from =
-                  item.from_mood ??
-                  item.fromMood ??
-                  item.from ??
-                  item.previous_mood ??
-                  item.previousMood ??
-                  item.start_mood ??
-                  item.startMood;
-
-                const to =
-                  item.to_mood ??
-                  item.toMood ??
-                  item.to ??
-                  item.next_mood ??
-                  item.nextMood ??
-                  item.current_mood ??
-                  item.currentMood ??
-                  item.end_mood ??
-                  item.endMood;
-
-                if (
-                  typeof from !== "string" ||
-                  typeof to !== "string"
-                ) {
-                  return null;
-                }
-
-                return {
-                  from: from.trim(),
-                  to: to.trim(),
-                };
-              })
-              .filter(Boolean);
-
-            if (pairs.length > 0) {
-              calculatedChanges = pairs.filter(
-                (pair) =>
-                  pair.from.toLowerCase() !==
-                  pair.to.toLowerCase()
-              ).length;
-            }
+          if (pairs.length > 0) {
+            calculatedChanges = pairs.filter(
+              (pair) =>
+                pair.from.toLowerCase() !==
+                pair.to.toLowerCase()
+            ).length;
           }
         }
       }
 
       // ------------------------------------------
-      // 3. Set count
-      // Do not trust multiMoodData.mood_changes as
-      // a chronological count when sequence is absent.
+      // 5. Set the final count
       // ------------------------------------------
       if (calculatedChanges !== null) {
         setMoodChanges(calculatedChanges);
       } else {
         setMoodChanges(null);
 
-        console.warn("Chronological mood changes unavailable.", {
-          transitionDataKeys:
-            transitionData && typeof transitionData === "object"
-              ? Object.keys(transitionData)
-              : [],
-          multiMoodDataKeys:
-            multiMoodData && typeof multiMoodData === "object"
-              ? Object.keys(multiMoodData)
-              : [],
-        });
+        console.warn(
+          "Chronological mood-change data unavailable."
+        );
       }
     } catch (error) {
       console.error("Multi-Mood parsing error:", error);
@@ -345,10 +466,7 @@ function MultiMood() {
             <Link
               to="/upload"
               className="result-action-btn"
-              style={{
-                display: "inline-flex",
-                marginTop: "20px",
-              }}
+              style={{ display: "inline-flex", marginTop: "20px" }}
             >
               🎵 <span>Upload Music</span>
             </Link>
@@ -359,12 +477,7 @@ function MultiMood() {
             <div className="analysis-card">
               <h2>👑 Dominant Mood</h2>
 
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "20px",
-                }}
-              >
+              <div style={{ textAlign: "center", padding: "20px" }}>
                 <div style={{ fontSize: "55px" }}>
                   {getMoodEmoji(dominantMood)}
                 </div>
@@ -390,10 +503,7 @@ function MultiMood() {
 
               <div className="multi-mood-list">
                 {moods.map((item) => (
-                  <div
-                    className="multi-mood-item"
-                    key={item.mood}
-                  >
+                  <div className="multi-mood-item" key={item.mood}>
                     <div className="multi-mood-icon">
                       {getMoodEmoji(item.mood)}
                     </div>
@@ -401,17 +511,13 @@ function MultiMood() {
                     <div className="multi-mood-info">
                       <div className="multi-mood-title">
                         <strong>{item.mood}</strong>
-                        <span>
-                          {item.percentage.toFixed(0)}%
-                        </span>
+                        <span>{item.percentage.toFixed(0)}%</span>
                       </div>
 
                       <div className="multi-mood-bar">
                         <div
                           className="multi-mood-progress"
-                          style={{
-                            width: `${item.percentage}%`,
-                          }}
+                          style={{ width: `${item.percentage}%` }}
                         />
                       </div>
 
@@ -477,34 +583,21 @@ function MultiMood() {
 
               <div style={profileGridStyle}>
                 {strongestMoods.map((item) => (
-                  <div
-                    key={item.mood}
-                    style={profileCardStyle}
-                  >
+                  <div key={item.mood} style={profileCardStyle}>
                     <div style={{ fontSize: "28px" }}>
                       {getMoodEmoji(item.mood)}
                     </div>
 
                     <div>{item.mood}</div>
 
-                    <div
-                      style={{
-                        color: "#667eea",
-                        marginTop: "4px",
-                      }}
-                    >
+                    <div style={{ color: "#667eea", marginTop: "4px" }}>
                       {item.percentage.toFixed(0)}%
                     </div>
                   </div>
                 ))}
               </div>
 
-              <p
-                style={{
-                  fontSize: "14px",
-                  marginTop: "18px",
-                }}
-              >
+              <p style={{ fontSize: "14px", marginTop: "18px" }}>
                 To see when a mood changes during the song, open
                 Mood Timeline or Mood Transition.
               </p>
@@ -514,31 +607,19 @@ function MultiMood() {
 
         {/* NAVIGATION */}
         <div className="result-actions">
-          <Link
-            to="/mood-result"
-            className="result-action-btn"
-          >
+          <Link to="/mood-result" className="result-action-btn">
             😊 <span>Mood Result</span>
           </Link>
 
-          <Link
-            to="/mood-timeline"
-            className="result-action-btn"
-          >
+          <Link to="/mood-timeline" className="result-action-btn">
             📈 <span>Mood Timeline</span>
           </Link>
 
-          <Link
-            to="/mood-transition"
-            className="result-action-btn"
-          >
+          <Link to="/mood-transition" className="result-action-btn">
             🔄 <span>Mood Transition</span>
           </Link>
 
-          <Link
-            to="/feedback"
-            className="result-feature-btn"
-          >
+          <Link to="/feedback" className="result-feature-btn">
             💬 <span>Give Feedback</span>
           </Link>
         </div>
