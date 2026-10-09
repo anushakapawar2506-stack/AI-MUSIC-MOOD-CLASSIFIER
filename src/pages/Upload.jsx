@@ -1,825 +1,275 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 
-// ==========================================
-// RENDER BACKEND URL
-// ==========================================
-
-const API_URL =
-  "https://ai-music-mood-classifier-1-bzvp.onrender.com";
+// Correct Render Backend URL
+const API_URL = "https://ai-music-mood-backend.onrender.com";
 
 function Upload() {
   const [file, setFile] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const navigate = useNavigate();
 
-  // ==========================================
-  // FILE SELECT
-  // ==========================================
+  const handleFileChange = (event) => {
+    const selectedFile = event.target.files?.[0];
 
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
+    setError("");
+    setSuccess("");
 
-    if (selectedFile) {
-      setFile(selectedFile);
-
-      // Save uploaded song name
-      localStorage.setItem(
-        "uploadedSongName",
-        selectedFile.name
-      );
-
-      // Remove old audio URL
-      localStorage.removeItem(
-        "uploadedAudioUrl"
-      );
-
-      // Remove previous analysis data
-      localStorage.removeItem(
-        "moodData"
-      );
-
-      localStorage.removeItem(
-        "moodTransitionData"
-      );
-
-      localStorage.removeItem(
-        "multiMoodData"
-      );
+    if (!selectedFile) {
+      setFile(null);
+      return;
     }
+
+    const allowedExtensions = /\.(mp3|wav|ogg|m4a|flac)$/i;
+
+    if (!allowedExtensions.test(selectedFile.name)) {
+      setFile(null);
+      setError("Please select an MP3, WAV, OGG, M4A or FLAC audio file.");
+      event.target.value = "";
+      return;
+    }
+
+    setFile(selectedFile);
   };
 
-  // ==========================================
-  // ANALYZE MUSIC
-  // ==========================================
-
-  const handleAnalyze = async () => {
-    if (analyzing) {
-      return;
-    }
+  const handleUpload = async (event) => {
+    event.preventDefault();
 
     if (!file) {
-      alert(
-        "Please select a music file first."
-      );
+      setError("Please select a song first.");
       return;
     }
 
+    setAnalyzing(true);
+    setError("");
+    setSuccess("");
+
     try {
-      setAnalyzing(true);
-
-      // ==========================================
-      // CLEAR OLD DATA
-      // ==========================================
-
-      localStorage.removeItem(
-        "moodData"
-      );
-
-      localStorage.removeItem(
-        "moodTransitionData"
-      );
-
-      localStorage.removeItem(
-        "multiMoodData"
-      );
-
-      localStorage.removeItem(
-        "uploadedAudioUrl"
-      );
-
-      // ==========================================
-      // 1. MOOD ANALYSIS
-      // ==========================================
-
-      console.log(
-        "================================"
-      );
-
-      console.log(
-        "🎵 STARTING MOOD ANALYSIS"
-      );
-
-      console.log(
-        "================================"
-      );
-
-      const moodFormData =
-        new FormData();
-
-      moodFormData.append(
-        "file",
-        file
-      );
-
-      const moodResponse =
-        await axios.post(
-          `${API_URL}/mood`,
-          moodFormData
-        );
-
-      const moodData =
-        moodResponse.data;
-
-      console.log(
-        "✅ MOOD RESPONSE:",
-        moodData
-      );
-
-      if (!moodData.success) {
-        throw new Error(
-          moodData.error ||
-            "Mood analysis failed."
-        );
-      }
-
-      // ==========================================
-      // SAVE MOOD DATA
-      // ==========================================
-
-      localStorage.setItem(
-        "moodData",
-        JSON.stringify(
-          moodData
-        )
-      );
-
-      console.log(
-        "✅ Mood data saved."
-      );
-
-      // ==========================================
-      // SAVE BACKEND AUDIO URL
-      // ==========================================
-
-      if (!moodData.filename) {
-        throw new Error(
-          "Backend did not return uploaded filename."
-        );
-      }
-
-      const backendAudioUrl =
-        `${API_URL}/uploads/${encodeURIComponent(
-          moodData.filename
-        )}`;
-
-      localStorage.setItem(
-        "uploadedAudioUrl",
-        backendAudioUrl
-      );
-
-      console.log(
-        "🎵 BACKEND AUDIO URL:",
-        backendAudioUrl
-      );
-
-      // ==========================================
-      // 2. MOOD TRANSITION ANALYSIS
-      // ==========================================
-
-      console.log(
-        "================================"
-      );
-
-      console.log(
-        "🎵 STARTING MOOD TRANSITION"
-      );
-
-      console.log(
-        "================================"
-      );
-
-      const transitionFormData =
-        new FormData();
-
-      transitionFormData.append(
-        "file",
-        file
-      );
-
-      const transitionResponse =
-        await axios.post(
-          `${API_URL}/mood-transition`,
-          transitionFormData
-        );
-
-      const transitionData =
-        transitionResponse.data;
-
-      console.log(
-        "🔥 TRANSITIONS:",
-        transitionData.transitions
-      );
-
-      console.log(
-        "🔥 TRANSITION KEYS:",
-        Object.keys(
-          transitionData
-        )
-      );
-
-      console.log(
-        "✅ TRANSITION RESPONSE:",
-        transitionData
-      );
-
-      if (!transitionData.success) {
-        throw new Error(
-          transitionData.error ||
-            "Mood transition analysis failed."
-        );
-      }
-
-      // Backend returns "transitions"
-      if (
-        !Array.isArray(
-          transitionData.transitions
-        )
-      ) {
-        throw new Error(
-          "Backend did not return transitions data."
-        );
-      }
-
-      // ==========================================
-      // SAVE TIMELINE DATA
-      // ==========================================
-
-      localStorage.setItem(
-        "moodTransitionData",
-        JSON.stringify(
-          transitionData
-        )
-      );
-
-      console.log(
-        "✅ Mood transition data saved."
-      );
-
-      // ==========================================
-      // 3. MULTI-MOOD ANALYSIS
-      // ==========================================
-
-      console.log(
-        "================================"
-      );
-
-      console.log(
-        "🎵 STARTING MULTI-MOOD ANALYSIS"
-      );
-
-      console.log(
-        "================================"
-      );
-
-      const multiMoodFormData =
-        new FormData();
-
-      multiMoodFormData.append(
-        "file",
-        file
-      );
-
-      const multiMoodResponse =
-        await axios.post(
-          `${API_URL}/multi-mood`,
-          multiMoodFormData
-        );
-
-      // IMPORTANT:
-      // Declare multiMoodData BEFORE using it
-
-      const multiMoodData =
-        multiMoodResponse.data;
-
-      console.log(
-        "🔥 MULTI-MOOD DATA:",
-        multiMoodData
-      );
-
-      console.log(
-        "🔥 MULTI-MOOD KEYS:",
-        Object.keys(
-          multiMoodData
-        )
-      );
-
-      console.log(
-        "✅ MULTI-MOOD RESPONSE:",
-        multiMoodData
-      );
-
-      if (!multiMoodData.success) {
-        throw new Error(
-          multiMoodData.error ||
-            "Multi-Mood analysis failed."
-        );
-      }
-
-      // Backend returns "scores", not "moods"
-      if (
-        !multiMoodData.scores ||
-        typeof multiMoodData.scores !==
-          "object"
-      ) {
-        throw new Error(
-          "Backend did not return Multi-Mood scores."
-        );
-      }
-
-      // ==========================================
-      // SAVE MULTI-MOOD DATA
-      // ==========================================
-
-      localStorage.setItem(
-        "multiMoodData",
-        JSON.stringify(
-          multiMoodData
-        )
-      );
-
-      console.log(
-        "✅ Multi-Mood data saved."
-      );
-
-      // ==========================================
-      // 4. SAVE SONG NAME
-      // ==========================================
-
-      localStorage.setItem(
-        "uploadedSongName",
-        file.name
-      );
-
-      // ==========================================
-      // 5. VERIFY BACKEND AUDIO URL
-      // ==========================================
-
-      const savedAudioUrl =
-        localStorage.getItem(
-          "uploadedAudioUrl"
-        );
-
-      console.log(
-        "✅ AUDIO URL SAVED:",
-        savedAudioUrl
-      );
-
-      // ==========================================
-      // 6. SAVE HISTORY
-      // ==========================================
-
-      const newPrediction = {
-        id: Date.now(),
-
-        song: file.name,
-
-        mood:
-          moodData.mood ||
-          "Unknown",
-
-        confidence:
-          moodData.confidence !==
-          undefined
-            ? `${moodData.confidence}%`
-            : "0%",
-
-        intensity:
-          moodData.intensity ||
-          "Medium",
-
-        date:
-          new Date().toLocaleDateString(
-            "en-IN"
-          )
+      const createFormData = () => {
+        const formData = new FormData();
+        formData.append("file", file);
+        return formData;
       };
 
-      // ==========================================
-      // GET OLD HISTORY
-      // ==========================================
+      // 1. Main mood prediction
+      const moodResponse = await axios.post(
+        `${API_URL}/mood`,
+        createFormData(),
+        { timeout: 180000 }
+      );
 
-      const oldHistory =
-        JSON.parse(
-          localStorage.getItem(
-            "predictionHistory"
-          )
-        ) || [];
+      const moodData = moodResponse.data;
 
-      // ==========================================
-      // DUPLICATE PROTECTION
-      // ==========================================
-
-      const lastPrediction =
-        oldHistory[0];
-
-      const isSameRecentPrediction =
-        lastPrediction &&
-        lastPrediction.song ===
-          newPrediction.song &&
-        lastPrediction.mood ===
-          newPrediction.mood &&
-        lastPrediction.confidence ===
-          newPrediction.confidence &&
-        lastPrediction.intensity ===
-          newPrediction.intensity;
-
-      let updatedHistory;
-
-      if (isSameRecentPrediction) {
-        console.log(
-          "⚠️ Duplicate recent prediction prevented."
+      if (
+        moodData?.success === false ||
+        moodData?.error ||
+        moodData?.mood == null
+      ) {
+        throw new Error(
+          moodData?.error || "Mood prediction failed."
         );
-
-        updatedHistory =
-          oldHistory;
-      } else {
-        updatedHistory = [
-          newPrediction,
-          ...oldHistory
-        ];
       }
 
-      // ==========================================
-      // SAVE HISTORY
-      // ==========================================
+      localStorage.setItem("moodData", JSON.stringify(moodData));
+      localStorage.setItem("uploadedSongName", file.name);
+
+      // Save uploaded audio for playback when supported by the result page
+      const localAudioUrl = URL.createObjectURL(file);
+      localStorage.setItem("uploadedAudioUrl", localAudioUrl);
+
+      // 2. Mood transition analysis
+      let transitionData = null;
+
+      try {
+        const transitionResponse = await axios.post(
+          `${API_URL}/mood-transition`,
+          createFormData(),
+          { timeout: 180000 }
+        );
+
+        transitionData = transitionResponse.data;
+
+        if (transitionData) {
+          localStorage.setItem(
+            "moodTransitionData",
+            JSON.stringify(transitionData)
+          );
+        }
+      } catch (transitionError) {
+        console.warn(
+          "Mood transition analysis failed:",
+          transitionError
+        );
+      }
+
+      // 3. Multi-mood analysis
+      let multiMoodData = null;
+
+      try {
+        const multiMoodResponse = await axios.post(
+          `${API_URL}/multi-mood`,
+          createFormData(),
+          { timeout: 180000 }
+        );
+
+        multiMoodData = multiMoodResponse.data;
+
+        if (multiMoodData) {
+          localStorage.setItem(
+            "multiMoodData",
+            JSON.stringify(multiMoodData)
+          );
+        }
+      } catch (multiMoodError) {
+        console.warn(
+          "Multi-mood analysis failed:",
+          multiMoodError
+        );
+      }
+
+      // 4. Save prediction in browser history
+      const existingHistory = JSON.parse(
+        localStorage.getItem("predictionHistory") || "[]"
+      );
+
+      const prediction = {
+        song: file.name,
+        mood: moodData.mood,
+        confidence: moodData.confidence ?? 0,
+        intensity: moodData.intensity ?? "Unknown",
+        date: new Date().toISOString(),
+      };
+
+      const updatedHistory = [
+        prediction,
+        ...existingHistory.filter(
+          (item) =>
+            !(
+              item.song === prediction.song &&
+              item.date === prediction.date
+            )
+        ),
+      ];
 
       localStorage.setItem(
         "predictionHistory",
-        JSON.stringify(
-          updatedHistory
-        )
+        JSON.stringify(updatedHistory)
       );
 
-      // ==========================================
-      // FINAL DEBUG
-      // ==========================================
+      setSuccess("Song analyzed successfully!");
 
-      console.log(
-        "================================"
-      );
+      // 5. Open result page
+      navigate("/mood-result");
+    } catch (err) {
+      console.error("Song analysis error:", err);
 
-      console.log(
-        "✅ FINAL ANALYSIS COMPLETE"
-      );
-
-      console.log(
-        "================================"
-      );
-
-      console.log(
-        "FINAL SAVED HISTORY:",
-        JSON.parse(
-          localStorage.getItem(
-            "predictionHistory"
-          )
-        )
-      );
-
-      console.log(
-        "FINAL SAVED MOOD DATA:",
-        JSON.parse(
-          localStorage.getItem(
-            "moodData"
-          )
-        )
-      );
-
-      console.log(
-        "FINAL SAVED TIMELINE:",
-        JSON.parse(
-          localStorage.getItem(
-            "moodTransitionData"
-          )
-        )
-      );
-
-      console.log(
-        "FINAL SAVED MULTI-MOOD:",
-        JSON.parse(
-          localStorage.getItem(
-            "multiMoodData"
-          )
-        )
-      );
-
-      console.log(
-        "FINAL SAVED AUDIO URL:",
-        localStorage.getItem(
-          "uploadedAudioUrl"
-        )
-      );
-
-      // ==========================================
-      // 7. GO TO MOOD RESULT
-      // ==========================================
-
-      navigate(
-        "/mood-result"
-      );
-
-    } catch (error) {
-
-      // ==========================================
-      // ERROR DEBUGGING
-      // ==========================================
-
-      console.error(
-        "================================"
-      );
-
-      console.error(
-        "❌ ANALYSIS ERROR"
-      );
-
-      console.error(
-        "================================"
-      );
-
-      console.error(
-        error
-      );
-
-      // ==========================================
-      // BACKEND RESPONSE ERROR
-      // ==========================================
-
-      if (error.response) {
-
-        console.error(
-          "❌ STATUS:",
-          error.response.status
+      if (err.response) {
+        setError(
+          err.response.data?.error ||
+            `Backend error: ${err.response.status}`
         );
-
-        console.error(
-          "❌ BACKEND RESPONSE:",
-          error.response.data
+      } else if (err.code === "ECONNABORTED") {
+        setError(
+          "Analysis timed out. Please try again in a moment."
         );
-
-        const backendMessage =
-          typeof error.response.data ===
-          "object"
-            ? JSON.stringify(
-                error.response.data
-              )
-            : error.response.data;
-
-        alert(
-          "❌ Analysis failed.\n\n" +
-            "Backend Error:\n" +
-            backendMessage
-        );
-
-      }
-
-      // ==========================================
-      // NO RESPONSE FROM FLASK
-      // ==========================================
-
-      else if (error.request) {
-
-        console.error(
-          "❌ NO RESPONSE FROM BACKEND:"
-        );
-
-        console.error(
-          error.request
-        );
-
-        alert(
-          "❌ Backend server response मिळाला नाही.\n\n" +
-            "Please check:\n" +
-            API_URL
-        );
-
-      }
-
-      // ==========================================
-      // FRONTEND ERROR
-      // ==========================================
-
-      else {
-
-        console.error(
-          "❌ ERROR MESSAGE:",
-          error.message
-        );
-
-        alert(
-          "❌ Analysis failed:\n\n" +
-            error.message
+      } else {
+        setError(
+          "Cannot connect to the backend. Please check the Render backend service and try again."
         );
       }
-
     } finally {
-
       setAnalyzing(false);
-
     }
   };
 
-  // ==========================================
-  // UI
-  // ==========================================
-
   return (
     <div className="upload-page">
-
       <div className="upload-container">
+        <h1>🎵 Upload Music</h1>
+        <p>
+          Upload your song and discover its musical mood using AI.
+        </p>
 
-        {/* BACK BUTTON */}
-
-        <Link
-          to="/dashboard"
-          className="back-link"
-        >
-          ← Back to Dashboard
-        </Link>
-
-        {/* HEADER */}
-
-        <div className="upload-header">
-
-          <div className="upload-icon">
-            🎵
-          </div>
-
-          <h1>
-            Upload Your Music
-          </h1>
-
-          <p>
-            Upload an audio file and let AI
-            analyze its mood.
-          </p>
-
-        </div>
-
-        {/* UPLOAD CARD */}
-
-        <div className="upload-card">
-
+        <form onSubmit={handleUpload}>
           <div className="upload-box">
-
-            <div className="upload-symbol">
-              🎧
-            </div>
-
-            <h2>
-              Select Music File
-            </h2>
-
-            <p>
-              Supported formats:
-              MP3, WAV, OGG, M4A
-            </p>
+            <label htmlFor="song-file">
+              <span style={{ fontSize: "42px" }}>🎧</span>
+              <h3>Select Your Song</h3>
+              <p>Supported formats: MP3, WAV, OGG, M4A, FLAC</p>
+            </label>
 
             <input
+              id="song-file"
               type="file"
-              accept=".mp3,.wav,.ogg,.m4a,audio/*"
-              onChange={
-                handleFileChange
-              }
+              accept=".mp3,.wav,.ogg,.m4a,.flac,audio/*"
+              onChange={handleFileChange}
+              disabled={analyzing}
             />
 
+            {file && (
+              <p className="selected-file">
+                Selected: <strong>{file.name}</strong>
+              </p>
+            )}
           </div>
 
-          {/* SELECTED FILE */}
-
-          {file && (
-            <div className="selected-file">
-
-              <span>
-                🎵
-              </span>
-
-              <div>
-
-                <strong>
-                  {file.name}
-                </strong>
-
-                <p>
-                  {(
-                    file.size /
-                    (1024 * 1024)
-                  ).toFixed(2)}{" "}
-                  MB
-                </p>
-
-              </div>
-
+          {error && (
+            <div
+              role="alert"
+              style={{
+                color: "#b91c1c",
+                background: "#fee2e2",
+                padding: "12px",
+                borderRadius: "8px",
+                marginTop: "16px",
+              }}
+            >
+              {error}
             </div>
           )}
 
-          {/* ANALYZE BUTTON */}
+          {success && (
+            <p role="status" style={{ color: "green" }}>
+              {success}
+            </p>
+          )}
 
           <button
-            className="analyze-button"
-            onClick={
-              handleAnalyze
-            }
-            disabled={
-              !file ||
-              analyzing
-            }
+            type="submit"
+            disabled={!file || analyzing}
+            style={{
+              width: "100%",
+              padding: "14px",
+              marginTop: "20px",
+              border: "none",
+              borderRadius: "8px",
+              background: analyzing ? "#999" : "#667eea",
+              color: "white",
+              fontSize: "16px",
+              fontWeight: "bold",
+              cursor: analyzing || !file ? "not-allowed" : "pointer",
+            }}
           >
-
-            {analyzing
-              ? "⏳ Analyzing..."
-              : "🧠 Analyze Music"}
-
+            {analyzing ? "Analyzing Song..." : "Analyze Song 🎶"}
           </button>
 
+          {analyzing && (
+            <p role="status" style={{ textAlign: "center" }}>
+              Please wait while AI analyzes your song. This may take
+              a few minutes if the backend is starting up.
+            </p>
+          )}
+        </form>
+
+        <div style={{ marginTop: "24px", textAlign: "center" }}>
+          <Link to="/dashboard">Back to Dashboard</Link>
         </div>
-
-        {/* INFORMATION */}
-
-        <div className="upload-info">
-
-          <h2>
-            What happens after upload?
-          </h2>
-
-          <div className="process-grid">
-
-            <div>
-
-              <span>
-                1️⃣
-              </span>
-
-              <h3>
-                Audio Upload
-              </h3>
-
-              <p>
-                Your selected music file
-                is received.
-              </p>
-
-            </div>
-
-            <div>
-
-              <span>
-                2️⃣
-              </span>
-
-              <h3>
-                Audio Feature Extraction
-              </h3>
-
-              <p>
-                Tempo, RMS, ZCR and
-                spectral features are
-                extracted.
-              </p>
-
-            </div>
-
-            <div>
-
-              <span>
-                3️⃣
-              </span>
-
-              <h3>
-                AI Mood Prediction
-              </h3>
-
-              <p>
-                The system predicts the
-                mood of the music.
-              </p>
-
-            </div>
-
-            <div>
-
-              <span>
-                4️⃣
-              </span>
-
-              <h3>
-                Mood Result
-              </h3>
-
-              <p>
-                Mood, confidence,
-                intensity and timeline
-                are displayed.
-              </p>
-
-            </div>
-
-          </div>
-
-        </div>
-
       </div>
-
     </div>
   );
 }
