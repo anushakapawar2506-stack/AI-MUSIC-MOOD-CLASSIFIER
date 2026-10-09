@@ -10,28 +10,37 @@ function MultiMood() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedSong = localStorage.getItem("uploadedSongName");
-
-    if (savedSong) {
-      setSongName(savedSong);
-    }
-
     try {
-      // 1. Read Multi-Mood data
+      const savedSong = localStorage.getItem("uploadedSongName");
+
+      if (savedSong) {
+        setSongName(savedSong);
+      }
+
+      // ------------------------------------------
+      // 1. Read Multi-Mood scores
+      // ------------------------------------------
       const savedMultiMoodData =
         localStorage.getItem("multiMoodData");
 
-      if (savedMultiMoodData) {
-        const data = JSON.parse(savedMultiMoodData);
+      let multiMoodData = null;
 
-        console.log("MULTI-MOOD DATA:", data);
+      if (savedMultiMoodData) {
+        multiMoodData = JSON.parse(savedMultiMoodData);
+
+        console.log("MULTI-MOOD DATA:", multiMoodData);
+
+        const scores =
+          multiMoodData.scores ??
+          multiMoodData.moods ??
+          multiMoodData.mood_scores;
 
         if (
-          data.scores &&
-          typeof data.scores === "object" &&
-          !Array.isArray(data.scores)
+          scores &&
+          typeof scores === "object" &&
+          !Array.isArray(scores)
         ) {
-          const moodArray = Object.entries(data.scores)
+          const moodArray = Object.entries(scores)
             .map(([mood, percentage]) => ({
               mood,
               percentage: Math.max(
@@ -44,147 +53,224 @@ function MultiMood() {
           setMoods(moodArray);
 
           setDominantMood(
-            data.dominant_mood || moodArray[0]?.mood || ""
+            multiMoodData.dominant_mood ??
+              multiMoodData.dominantMood ??
+              moodArray[0]?.mood ??
+              ""
           );
         }
       }
 
-      // 2. Calculate actual chronological mood changes
+      // ------------------------------------------
+      // 2. Read chronological Mood Transition data
+      // ------------------------------------------
       const savedTransitionData =
         localStorage.getItem("moodTransitionData");
 
+      let transitionData = null;
       let calculatedChanges = null;
 
       if (savedTransitionData) {
-        const transitionData = JSON.parse(savedTransitionData);
+        transitionData = JSON.parse(savedTransitionData);
 
         console.log("MOOD TRANSITION DATA:", transitionData);
+      }
 
-        // Prefer chronological sections/segments because
-        // repeated transitions may not represent separate changes.
-        const sections = [
-          ...(Array.isArray(transitionData.sections)
-            ? transitionData.sections
-            : []),
-          ...(Array.isArray(transitionData.segments)
-            ? transitionData.segments
-            : []),
+      if (
+        transitionData &&
+        typeof transitionData === "object"
+      ) {
+        // Support common response formats.
+        const possibleSectionArrays = [
+          transitionData.sections,
+          transitionData.segments,
+          transitionData.timeline,
+          transitionData.mood_timeline,
+          transitionData.moodTimeline,
+          transitionData.results,
         ];
 
-        const getSectionMood = (item) =>
-          item.mood ??
-          item.predicted_mood ??
-          item.predictedMood ??
-          item.detected_mood ??
-          item.detectedMood ??
-          item.dominant_mood ??
-          item.dominantMood ??
-          item.emotion ??
-          null;
+        let sections = possibleSectionArrays.find(
+          (value) => Array.isArray(value) && value.length > 0
+        );
 
-        const sectionMoods = sections
-          .map(getSectionMood)
-          .filter(
-            (mood) =>
-              typeof mood === "string" && mood.trim() !== ""
-          );
+        // Some APIs nest the chronological data.
+        if (!sections && transitionData.data) {
+          const nested = transitionData.data;
 
-        if (sectionMoods.length > 0) {
-          calculatedChanges = 0;
-
-          for (let i = 1; i < sectionMoods.length; i++) {
-            if (
-              sectionMoods[i].trim().toLowerCase() !==
-              sectionMoods[i - 1].trim().toLowerCase()
-            ) {
-              calculatedChanges++;
-            }
+          if (Array.isArray(nested)) {
+            sections = nested;
+          } else if (typeof nested === "object") {
+            sections =
+              nested.sections ??
+              nested.segments ??
+              nested.timeline ??
+              nested.mood_timeline ??
+              nested.moodTimeline;
           }
-        } else {
-          // Fallback to explicit transition pairs.
-          const transitions = Array.isArray(
-            transitionData.transitions
-          )
-            ? transitionData.transitions
-            : [];
+        }
 
-          const pairs = transitions
-            .map((item) => ({
-              from:
-                item.from_mood ??
-                item.fromMood ??
-                item.from ??
-                item.previous_mood ??
-                item.previousMood ??
-                item.start_mood ??
-                item.startMood,
+        const getMood = (item) => {
+          if (typeof item === "string") {
+            return item.trim();
+          }
 
-              to:
-                item.to_mood ??
-                item.toMood ??
-                item.to ??
-                item.next_mood ??
-                item.nextMood ??
-                item.current_mood ??
-                item.currentMood ??
-                item.end_mood ??
-                item.endMood,
-            }))
-            .filter(
-              (item) =>
-                typeof item.from === "string" &&
-                typeof item.to === "string"
+          if (!item || typeof item !== "object") {
+            return "";
+          }
+
+          const value =
+            item.mood ??
+            item.predicted_mood ??
+            item.predictedMood ??
+            item.detected_mood ??
+            item.detectedMood ??
+            item.dominant_mood ??
+            item.dominantMood ??
+            item.emotion ??
+            item.label ??
+            item.prediction;
+
+          return typeof value === "string" ? value.trim() : "";
+        };
+
+        if (Array.isArray(sections) && sections.length > 0) {
+          const chronologicalMoods = sections
+            .map(getMood)
+            .filter(Boolean);
+
+          if (chronologicalMoods.length > 0) {
+            calculatedChanges = 0;
+
+            for (
+              let index = 1;
+              index < chronologicalMoods.length;
+              index++
+            ) {
+              const previous =
+                chronologicalMoods[index - 1].toLowerCase();
+
+              const current =
+                chronologicalMoods[index].toLowerCase();
+
+              if (previous !== current) {
+                calculatedChanges++;
+              }
+            }
+
+            console.log(
+              "Chronological moods:",
+              chronologicalMoods
             );
 
-          if (pairs.length > 0) {
-            calculatedChanges = pairs.filter(
-              (item) =>
-                item.from.trim().toLowerCase() !==
-                item.to.trim().toLowerCase()
-            ).length;
+            console.log(
+              "Calculated mood changes:",
+              calculatedChanges
+            );
+          }
+        }
+
+        // Fallback: count changes from explicit transition pairs.
+        // Use this only when section/timeline data is unavailable.
+        if (calculatedChanges === null) {
+          const possibleTransitionArrays = [
+            transitionData.transitions,
+            transitionData.mood_transitions,
+            transitionData.moodTransitions,
+          ];
+
+          let transitions = possibleTransitionArrays.find(
+            (value) => Array.isArray(value) && value.length > 0
+          );
+
+          if (!transitions && Array.isArray(transitionData.data)) {
+            transitions = transitionData.data;
+          }
+
+          if (Array.isArray(transitions) && transitions.length > 0) {
+            const pairs = transitions
+              .map((item) => {
+                if (!item || typeof item !== "object") {
+                  return null;
+                }
+
+                const from =
+                  item.from_mood ??
+                  item.fromMood ??
+                  item.from ??
+                  item.previous_mood ??
+                  item.previousMood ??
+                  item.start_mood ??
+                  item.startMood;
+
+                const to =
+                  item.to_mood ??
+                  item.toMood ??
+                  item.to ??
+                  item.next_mood ??
+                  item.nextMood ??
+                  item.current_mood ??
+                  item.currentMood ??
+                  item.end_mood ??
+                  item.endMood;
+
+                if (
+                  typeof from !== "string" ||
+                  typeof to !== "string"
+                ) {
+                  return null;
+                }
+
+                return {
+                  from: from.trim(),
+                  to: to.trim(),
+                };
+              })
+              .filter(Boolean);
+
+            if (pairs.length > 0) {
+              calculatedChanges = pairs.filter(
+                (pair) =>
+                  pair.from.toLowerCase() !==
+                  pair.to.toLowerCase()
+              ).length;
+            }
           }
         }
       }
 
-      // 3. Use chronological calculation first.
-      // If unavailable, use the backend count if provided.
+      // ------------------------------------------
+      // 3. Set count
+      // Do not trust multiMoodData.mood_changes as
+      // a chronological count when sequence is absent.
+      // ------------------------------------------
       if (calculatedChanges !== null) {
         setMoodChanges(calculatedChanges);
       } else {
-        const savedMultiMoodData =
-          localStorage.getItem("multiMoodData");
+        setMoodChanges(null);
 
-        if (savedMultiMoodData) {
-          const data = JSON.parse(savedMultiMoodData);
-
-          const backendCount =
-            data.mood_changes ?? data.moodChanges;
-
-          if (
-            backendCount !== undefined &&
-            backendCount !== null &&
-            Number.isFinite(Number(backendCount))
-          ) {
-            setMoodChanges(
-              Math.max(0, Number(backendCount))
-            );
-          }
-        }
-
-        if (calculatedChanges === null) {
-          console.warn(
-            "Chronological mood changes unavailable."
-          );
-        }
+        console.warn("Chronological mood changes unavailable.", {
+          transitionDataKeys:
+            transitionData && typeof transitionData === "object"
+              ? Object.keys(transitionData)
+              : [],
+          multiMoodDataKeys:
+            multiMoodData && typeof multiMoodData === "object"
+              ? Object.keys(multiMoodData)
+              : [],
+        });
       }
     } catch (error) {
       console.error("Multi-Mood parsing error:", error);
+      setMoodChanges(null);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // ------------------------------------------
   // Mood emoji
+  // ------------------------------------------
   const getMoodEmoji = (mood) => {
     const emojis = {
       happy: "😊",
@@ -194,14 +280,15 @@ function MultiMood() {
       aggressive: "🔥",
       romantic: "❤️",
       dramatic: "🎭",
+      neutral: "😐",
     };
 
-    return (
-      emojis[String(mood || "").toLowerCase()] || "🎵"
-    );
+    return emojis[String(mood || "").toLowerCase()] || "🎵";
   };
 
+  // ------------------------------------------
   // Mood description
+  // ------------------------------------------
   const getMoodDescription = (mood) => {
     const descriptions = {
       happy: "Positive and cheerful feeling",
@@ -211,6 +298,7 @@ function MultiMood() {
       aggressive: "Strong and intense emotional feeling",
       romantic: "Warm and affectionate emotional feeling",
       dramatic: "Intense and expressive emotional feeling",
+      neutral: "Balanced or neutral emotional feeling",
     };
 
     return (
@@ -219,7 +307,6 @@ function MultiMood() {
     );
   };
 
-  // These are scores, not chronological transitions.
   const strongestMoods = moods.slice(0, 2);
 
   return (
@@ -233,8 +320,8 @@ function MultiMood() {
           <div className="result-main-icon">🎭</div>
           <h1>Multi-Mood Detection</h1>
           <p>
-            Detect multiple emotional moods present
-            throughout your uploaded song.
+            Detect multiple emotional moods present throughout
+            your uploaded song.
           </p>
         </div>
 
@@ -254,9 +341,7 @@ function MultiMood() {
         ) : moods.length === 0 ? (
           <div className="analysis-card">
             <h2>🎭 No Multi-Mood Data</h2>
-            <p>
-              Please upload and analyze a music file first.
-            </p>
+            <p>Please upload and analyze a music file first.</p>
             <Link
               to="/upload"
               className="result-action-btn"
@@ -285,12 +370,12 @@ function MultiMood() {
                 </div>
 
                 <h2 style={{ marginTop: "10px" }}>
-                  {dominantMood}
+                  {dominantMood || "Unknown"}
                 </h2>
 
                 <p>
-                  This is the strongest emotional mood
-                  detected in the song.
+                  This is the strongest emotional mood detected
+                  in the song.
                 </p>
               </div>
             </div>
@@ -299,8 +384,8 @@ function MultiMood() {
             <div className="analysis-card">
               <h2>🎭 Detected Moods</h2>
               <p>
-                The AI detected multiple emotional moods
-                in the uploaded song.
+                The AI detected multiple emotional moods in the
+                uploaded song.
               </p>
 
               <div className="multi-mood-list">
@@ -373,9 +458,9 @@ function MultiMood() {
 
               {moodChanges === null && (
                 <p style={{ marginTop: "14px" }}>
-                  Chronological mood-change data is
-                  unavailable. Analyze the song again
-                  to refresh its transition data.
+                  Chronological mood-change data is unavailable.
+                  Open Mood Timeline or Mood Transition to inspect
+                  the song's chronological results.
                 </p>
               )}
             </div>
@@ -385,9 +470,9 @@ function MultiMood() {
               <h2>🧠 Emotional Profile</h2>
 
               <p>
-                These are the strongest moods according
-                to their multi-mood scores. They are not
-                chronological transitions.
+                These are the strongest moods according to their
+                multi-mood scores. They are not chronological
+                transitions.
               </p>
 
               <div style={profileGridStyle}>
@@ -414,9 +499,14 @@ function MultiMood() {
                 ))}
               </div>
 
-              <p style={{ fontSize: "14px", marginTop: "18px" }}>
-                To see when a mood changes during the song,
-                open Mood Timeline or Mood Transition.
+              <p
+                style={{
+                  fontSize: "14px",
+                  marginTop: "18px",
+                }}
+              >
+                To see when a mood changes during the song, open
+                Mood Timeline or Mood Transition.
               </p>
             </div>
           </>
