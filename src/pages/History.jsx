@@ -16,9 +16,10 @@ function History() {
       setLoading(true);
       setError("");
 
-      const response = await axios.get(
-        "http://127.0.0.1:5000/history"
-      );
+      const response = await axios.delete(
+  `https://ai-music-mood-classifier-1-bzvp.onrender.com/history/${id}`
+);
+    
 
       console.log("History API Response:", response.data);
 
@@ -146,8 +147,8 @@ function History() {
 
     try {
       const response = await axios.delete(
-        "http://127.0.0.1:5000/history"
-      );
+  "https://ai-music-mood-classifier-1-bzvp.onrender.com/history"
+);
 
       if (response.data.success) {
         setHistory([]);
