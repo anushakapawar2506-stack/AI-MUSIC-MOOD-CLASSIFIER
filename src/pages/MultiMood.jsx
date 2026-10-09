@@ -16,54 +16,166 @@ function MultiMood() {
       setSongName(savedSong);
     }
 
-    const savedMultiMoodData =
-      localStorage.getItem("multiMoodData");
-
-    if (!savedMultiMoodData) {
-      console.warn("Multi-Mood data not found.");
-      setLoading(false);
-      return;
-    }
-
     try {
-      const data = JSON.parse(savedMultiMoodData);
+      // 1. Read Multi-Mood data
+      const savedMultiMoodData =
+        localStorage.getItem("multiMoodData");
 
-      console.log("MULTI-MOOD DATA:", data);
+      if (savedMultiMoodData) {
+        const data = JSON.parse(savedMultiMoodData);
 
-      // 1. Read mood scores
-      if (
-        data.scores &&
-        typeof data.scores === "object" &&
-        !Array.isArray(data.scores)
-      ) {
-        const moodArray = Object.entries(data.scores)
-          .map(([mood, percentage]) => ({
-            mood,
-            percentage: Number(percentage) || 0,
-          }))
-          .sort((a, b) => b.percentage - a.percentage);
+        console.log("MULTI-MOOD DATA:", data);
 
-        setMoods(moodArray);
+        if (
+          data.scores &&
+          typeof data.scores === "object" &&
+          !Array.isArray(data.scores)
+        ) {
+          const moodArray = Object.entries(data.scores)
+            .map(([mood, percentage]) => ({
+              mood,
+              percentage: Math.max(
+                0,
+                Math.min(100, Number(percentage) || 0)
+              ),
+            }))
+            .sort((a, b) => b.percentage - a.percentage);
 
-        // Use backend dominant mood, or fall back to
-        // the highest-scoring mood.
-        setDominantMood(
-          data.dominant_mood || moodArray[0]?.mood || ""
-        );
-      } else {
-        console.warn("Valid mood scores were not found.");
+          setMoods(moodArray);
+
+          setDominantMood(
+            data.dominant_mood || moodArray[0]?.mood || ""
+          );
+        }
       }
 
-      // 2. Read actual mood-change count from backend.
-      // Do not calculate transitions from sorted mood scores.
-      if (
-        data.mood_changes !== undefined &&
-        data.mood_changes !== null &&
-        Number.isFinite(Number(data.mood_changes))
-      ) {
-        setMoodChanges(
-          Math.max(0, Number(data.mood_changes))
-        );
+      // 2. Calculate actual chronological mood changes
+      const savedTransitionData =
+        localStorage.getItem("moodTransitionData");
+
+      let calculatedChanges = null;
+
+      if (savedTransitionData) {
+        const transitionData = JSON.parse(savedTransitionData);
+
+        console.log("MOOD TRANSITION DATA:", transitionData);
+
+        // Prefer chronological sections/segments because
+        // repeated transitions may not represent separate changes.
+        const sections = [
+          ...(Array.isArray(transitionData.sections)
+            ? transitionData.sections
+            : []),
+          ...(Array.isArray(transitionData.segments)
+            ? transitionData.segments
+            : []),
+        ];
+
+        const getSectionMood = (item) =>
+          item.mood ??
+          item.predicted_mood ??
+          item.predictedMood ??
+          item.detected_mood ??
+          item.detectedMood ??
+          item.dominant_mood ??
+          item.dominantMood ??
+          item.emotion ??
+          null;
+
+        const sectionMoods = sections
+          .map(getSectionMood)
+          .filter(
+            (mood) =>
+              typeof mood === "string" && mood.trim() !== ""
+          );
+
+        if (sectionMoods.length > 0) {
+          calculatedChanges = 0;
+
+          for (let i = 1; i < sectionMoods.length; i++) {
+            if (
+              sectionMoods[i].trim().toLowerCase() !==
+              sectionMoods[i - 1].trim().toLowerCase()
+            ) {
+              calculatedChanges++;
+            }
+          }
+        } else {
+          // Fallback to explicit transition pairs.
+          const transitions = Array.isArray(
+            transitionData.transitions
+          )
+            ? transitionData.transitions
+            : [];
+
+          const pairs = transitions
+            .map((item) => ({
+              from:
+                item.from_mood ??
+                item.fromMood ??
+                item.from ??
+                item.previous_mood ??
+                item.previousMood ??
+                item.start_mood ??
+                item.startMood,
+
+              to:
+                item.to_mood ??
+                item.toMood ??
+                item.to ??
+                item.next_mood ??
+                item.nextMood ??
+                item.current_mood ??
+                item.currentMood ??
+                item.end_mood ??
+                item.endMood,
+            }))
+            .filter(
+              (item) =>
+                typeof item.from === "string" &&
+                typeof item.to === "string"
+            );
+
+          if (pairs.length > 0) {
+            calculatedChanges = pairs.filter(
+              (item) =>
+                item.from.trim().toLowerCase() !==
+                item.to.trim().toLowerCase()
+            ).length;
+          }
+        }
+      }
+
+      // 3. Use chronological calculation first.
+      // If unavailable, use the backend count if provided.
+      if (calculatedChanges !== null) {
+        setMoodChanges(calculatedChanges);
+      } else {
+        const savedMultiMoodData =
+          localStorage.getItem("multiMoodData");
+
+        if (savedMultiMoodData) {
+          const data = JSON.parse(savedMultiMoodData);
+
+          const backendCount =
+            data.mood_changes ?? data.moodChanges;
+
+          if (
+            backendCount !== undefined &&
+            backendCount !== null &&
+            Number.isFinite(Number(backendCount))
+          ) {
+            setMoodChanges(
+              Math.max(0, Number(backendCount))
+            );
+          }
+        }
+
+        if (calculatedChanges === null) {
+          console.warn(
+            "Chronological mood changes unavailable."
+          );
+        }
       }
     } catch (error) {
       console.error("Multi-Mood parsing error:", error);
@@ -74,8 +186,6 @@ function MultiMood() {
 
   // Mood emoji
   const getMoodEmoji = (mood) => {
-    const name = String(mood || "").toLowerCase();
-
     const emojis = {
       happy: "😊",
       sad: "😢",
@@ -86,7 +196,9 @@ function MultiMood() {
       dramatic: "🎭",
     };
 
-    return emojis[name] || "🎵";
+    return (
+      emojis[String(mood || "").toLowerCase()] || "🎵"
+    );
   };
 
   // Mood description
@@ -107,56 +219,44 @@ function MultiMood() {
     );
   };
 
-  // Show the top two scores as a profile, not as
-  // a chronological mood journey.
+  // These are scores, not chronological transitions.
   const strongestMoods = moods.slice(0, 2);
 
   return (
     <div className="mood-result-page">
       <div className="mood-result-container">
-
-        {/* BACK */}
         <Link to="/dashboard" className="result-back">
           ← Back to Dashboard
         </Link>
 
-        {/* HEADER */}
         <div className="result-header">
           <div className="result-main-icon">🎭</div>
-
           <h1>Multi-Mood Detection</h1>
-
           <p>
             Detect multiple emotional moods present
             throughout your uploaded song.
           </p>
         </div>
 
-        {/* SONG CARD */}
         <div className="song-result-card">
           <div className="song-icon">🎵</div>
-
           <div>
             <span>ANALYZED SONG</span>
             <h3>{songName}</h3>
           </div>
         </div>
 
-        {/* LOADING */}
         {loading ? (
           <div className="analysis-card">
             <h2>⏳ Loading Analysis...</h2>
             <p>Please wait while the result is loaded.</p>
           </div>
         ) : moods.length === 0 ? (
-          /* NO DATA */
           <div className="analysis-card">
             <h2>🎭 No Multi-Mood Data</h2>
-
             <p>
               Please upload and analyze a music file first.
             </p>
-
             <Link
               to="/upload"
               className="result-action-btn"
@@ -198,54 +298,44 @@ function MultiMood() {
             {/* DETECTED MOODS */}
             <div className="analysis-card">
               <h2>🎭 Detected Moods</h2>
-
               <p>
                 The AI detected multiple emotional moods
                 in the uploaded song.
               </p>
 
               <div className="multi-mood-list">
-                {moods.map((item, index) => {
-                  const moodName = item.mood || "Unknown";
-                  const percentage = Math.max(
-                    0,
-                    Math.min(100, item.percentage)
-                  );
-
-                  return (
-                    <div
-                      className="multi-mood-item"
-                      key={`${moodName}-${index}`}
-                    >
-                      <div className="multi-mood-icon">
-                        {getMoodEmoji(moodName)}
-                      </div>
-
-                      <div className="multi-mood-info">
-                        <div className="multi-mood-title">
-                          <strong>{moodName}</strong>
-
-                          <span>
-                            {item.percentage.toFixed(0)}%
-                          </span>
-                        </div>
-
-                        <div className="multi-mood-bar">
-                          <div
-                            className="multi-mood-progress"
-                            style={{
-                              width: `${percentage}%`,
-                            }}
-                          />
-                        </div>
-
-                        <small>
-                          {getMoodDescription(moodName)}
-                        </small>
-                      </div>
+                {moods.map((item) => (
+                  <div
+                    className="multi-mood-item"
+                    key={item.mood}
+                  >
+                    <div className="multi-mood-icon">
+                      {getMoodEmoji(item.mood)}
                     </div>
-                  );
-                })}
+
+                    <div className="multi-mood-info">
+                      <div className="multi-mood-title">
+                        <strong>{item.mood}</strong>
+                        <span>
+                          {item.percentage.toFixed(0)}%
+                        </span>
+                      </div>
+
+                      <div className="multi-mood-bar">
+                        <div
+                          className="multi-mood-progress"
+                          style={{
+                            width: `${item.percentage}%`,
+                          }}
+                        />
+                      </div>
+
+                      <small>
+                        {getMoodDescription(item.mood)}
+                      </small>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -253,16 +343,7 @@ function MultiMood() {
             <div className="analysis-card">
               <h2>📊 Analysis Summary</h2>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "repeat(auto-fit, minmax(150px, 1fr))",
-                  gap: "15px",
-                  marginTop: "20px",
-                }}
-              >
-                {/* DETECTED MOODS */}
+              <div style={summaryGridStyle}>
                 <div style={summaryCardStyle}>
                   <strong style={summaryValueStyle}>
                     {moods.length}
@@ -270,7 +351,6 @@ function MultiMood() {
                   <span>Detected Moods</span>
                 </div>
 
-                {/* MOOD CHANGES */}
                 <div style={summaryCardStyle}>
                   <strong style={summaryValueStyle}>
                     {moodChanges ?? "—"}
@@ -278,7 +358,6 @@ function MultiMood() {
                   <span>Mood Changes</span>
                 </div>
 
-                {/* DOMINANT MOOD */}
                 <div style={summaryCardStyle}>
                   <strong
                     style={{
@@ -291,6 +370,14 @@ function MultiMood() {
                   <span>Dominant Mood</span>
                 </div>
               </div>
+
+              {moodChanges === null && (
+                <p style={{ marginTop: "14px" }}>
+                  Chronological mood-change data is
+                  unavailable. Analyze the song again
+                  to refresh its transition data.
+                </p>
+              )}
             </div>
 
             {/* EMOTIONAL PROFILE */}
@@ -298,31 +385,16 @@ function MultiMood() {
               <h2>🧠 Emotional Profile</h2>
 
               <p>
-                These are the strongest moods according to
-                their multi-mood scores. They are not
+                These are the strongest moods according
+                to their multi-mood scores. They are not
                 chronological transitions.
               </p>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: "12px",
-                  marginTop: "20px",
-                }}
-              >
+              <div style={profileGridStyle}>
                 {strongestMoods.map((item) => (
                   <div
                     key={item.mood}
-                    style={{
-                      padding: "12px 18px",
-                      background: "#f8f8ff",
-                      borderRadius: "12px",
-                      textAlign: "center",
-                      fontWeight: "600",
-                    }}
+                    style={profileCardStyle}
                   >
                     <div style={{ fontSize: "28px" }}>
                       {getMoodEmoji(item.mood)}
@@ -342,12 +414,7 @@ function MultiMood() {
                 ))}
               </div>
 
-              <p
-                style={{
-                  fontSize: "14px",
-                  marginTop: "18px",
-                }}
-              >
+              <p style={{ fontSize: "14px", marginTop: "18px" }}>
                 To see when a mood changes during the song,
                 open Mood Timeline or Mood Transition.
               </p>
@@ -390,6 +457,13 @@ function MultiMood() {
   );
 }
 
+const summaryGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+  gap: "15px",
+  marginTop: "20px",
+};
+
 const summaryCardStyle = {
   padding: "18px",
   background: "#f8f8ff",
@@ -402,6 +476,23 @@ const summaryValueStyle = {
   fontSize: "25px",
   color: "#667eea",
   marginBottom: "5px",
+};
+
+const profileGridStyle = {
+  display: "flex",
+  flexWrap: "wrap",
+  justifyContent: "center",
+  alignItems: "center",
+  gap: "12px",
+  marginTop: "20px",
+};
+
+const profileCardStyle = {
+  padding: "12px 18px",
+  background: "#f8f8ff",
+  borderRadius: "12px",
+  textAlign: "center",
+  fontWeight: "600",
 };
 
 export default MultiMood;
