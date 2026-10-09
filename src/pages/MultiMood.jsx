@@ -1,286 +1,160 @@
+
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 function MultiMood() {
   const [songName, setSongName] = useState("Uploaded Song");
   const [moods, setMoods] = useState([]);
-  const [journey, setJourney] = useState([]);
   const [dominantMood, setDominantMood] = useState("");
-  const [moodChanges, setMoodChanges] = useState(0);
+  const [moodChanges, setMoodChanges] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // ==============================
-    // GET UPLOADED SONG NAME
-    // ==============================
-
-    const savedSong =
-      localStorage.getItem("uploadedSongName");
+    const savedSong = localStorage.getItem("uploadedSongName");
 
     if (savedSong) {
       setSongName(savedSong);
     }
 
-    // ==============================
-    // GET MULTI-MOOD DATA
-    // ==============================
-
     const savedMultiMoodData =
       localStorage.getItem("multiMoodData");
 
-    if (savedMultiMoodData) {
-      try {
-        const data =
-          JSON.parse(savedMultiMoodData);
+    if (!savedMultiMoodData) {
+      console.warn("Multi-Mood data not found.");
+      setLoading(false);
+      return;
+    }
 
-        console.log(
-          "🎭 MULTI-MOOD DATA:",
-          data
+    try {
+      const data = JSON.parse(savedMultiMoodData);
+
+      console.log("MULTI-MOOD DATA:", data);
+
+      // 1. Read mood scores
+      if (
+        data.scores &&
+        typeof data.scores === "object" &&
+        !Array.isArray(data.scores)
+      ) {
+        const moodArray = Object.entries(data.scores)
+          .map(([mood, percentage]) => ({
+            mood,
+            percentage: Number(percentage) || 0,
+          }))
+          .sort((a, b) => b.percentage - a.percentage);
+
+        setMoods(moodArray);
+
+        // Use backend dominant mood, or fall back to
+        // the highest-scoring mood.
+        setDominantMood(
+          data.dominant_mood || moodArray[0]?.mood || ""
         );
+      } else {
+        console.warn("Valid mood scores were not found.");
+      }
 
-        // ==========================================
-        // BACKEND ACTUAL STRUCTURE:
-        //
-        // data.scores = {
-        //   Energetic: 100,
-        //   Happy: 97,
-        //   Relaxed: 22,
-        //   Sad: 25
-        // }
-        // ==========================================
-
-        if (
-          data.scores &&
-          typeof data.scores === "object"
-        ) {
-          const moodArray =
-            Object.entries(data.scores)
-              .map(
-                ([mood, percentage]) => ({
-                  mood,
-                  percentage: Number(
-                    percentage
-                  ) || 0
-                })
-              )
-              .sort(
-                (a, b) =>
-                  b.percentage -
-                  a.percentage
-              );
-
-          setMoods(moodArray);
-
-          // Create emotional journey
-          const detectedJourney =
-            moodArray
-              .filter(
-                (item) =>
-                  item.percentage > 50
-              )
-              .map(
-                (item) => item.mood
-              );
-
-          setJourney(
-            detectedJourney
-          );
-        }
-
-        // ==========================================
-        // DOMINANT MOOD
-        // ==========================================
-
-        if (data.dominant_mood) {
-          setDominantMood(
-            data.dominant_mood
-          );
-        }
-
-        // ==========================================
-        // MOOD CHANGES
-        // ==========================================
-
-        if (
-          data.mood_changes !==
-            undefined &&
-          data.mood_changes !== null
-        ) {
-          setMoodChanges(
-            Number(
-              data.mood_changes
-            ) || 0
-          );
-        }
-
-      } catch (error) {
-        console.error(
-          "❌ Multi-Mood data parsing error:",
-          error
+      // 2. Read actual mood-change count from backend.
+      // Do not calculate transitions from sorted mood scores.
+      if (
+        data.mood_changes !== undefined &&
+        data.mood_changes !== null &&
+        Number.isFinite(Number(data.mood_changes))
+      ) {
+        setMoodChanges(
+          Math.max(0, Number(data.mood_changes))
         );
       }
-    } else {
-      console.warn(
-        "⚠️ multiMoodData not found in localStorage"
-      );
+    } catch (error) {
+      console.error("Multi-Mood parsing error:", error);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }, []);
 
-  // ==============================
-  // MOOD EMOJI
-  // ==============================
-
+  // Mood emoji
   const getMoodEmoji = (mood) => {
-    const moodName =
-      String(mood || "").toLowerCase();
+    const name = String(mood || "").toLowerCase();
 
-    if (moodName === "happy") return "😊";
-    if (moodName === "sad") return "😢";
-    if (moodName === "relaxed") return "😌";
-    if (moodName === "energetic") return "⚡";
-    if (moodName === "aggressive") return "🔥";
-    if (moodName === "romantic") return "❤️";
-    if (moodName === "dramatic") return "🎭";
+    const emojis = {
+      happy: "😊",
+      sad: "😢",
+      relaxed: "😌",
+      energetic: "⚡",
+      aggressive: "🔥",
+      romantic: "❤️",
+      dramatic: "🎭",
+    };
 
-    return "🎵";
+    return emojis[name] || "🎵";
   };
 
-  // ==============================
-  // MOOD DESCRIPTION
-  // ==============================
-
+  // Mood description
   const getMoodDescription = (mood) => {
-    const moodName =
-      String(mood || "").toLowerCase();
+    const descriptions = {
+      happy: "Positive and cheerful feeling",
+      sad: "Emotional and low-energy feeling",
+      relaxed: "Calm and peaceful feeling",
+      energetic: "High-energy and active feeling",
+      aggressive: "Strong and intense emotional feeling",
+      romantic: "Warm and affectionate emotional feeling",
+      dramatic: "Intense and expressive emotional feeling",
+    };
 
-    if (moodName === "happy") {
-      return "Positive and cheerful feeling";
-    }
-
-    if (moodName === "sad") {
-      return "Emotional and low-energy feeling";
-    }
-
-    if (moodName === "relaxed") {
-      return "Calm and peaceful feeling";
-    }
-
-    if (moodName === "energetic") {
-      return "High-energy and active feeling";
-    }
-
-    if (moodName === "aggressive") {
-      return "Strong and intense emotional feeling";
-    }
-
-    if (moodName === "romantic") {
-      return "Warm and affectionate emotional feeling";
-    }
-
-    if (moodName === "dramatic") {
-      return "Intense and expressive emotional feeling";
-    }
-
-    return "Detected emotional mood";
+    return (
+      descriptions[String(mood || "").toLowerCase()] ||
+      "Detected emotional mood"
+    );
   };
+
+  // Show the top two scores as a profile, not as
+  // a chronological mood journey.
+  const strongestMoods = moods.slice(0, 2);
 
   return (
     <div className="mood-result-page">
-
       <div className="mood-result-container">
 
-        {/* ==============================
-            BACK
-        ============================== */}
-
-        <Link
-          to="/dashboard"
-          className="result-back"
-        >
+        {/* BACK */}
+        <Link to="/dashboard" className="result-back">
           ← Back to Dashboard
         </Link>
 
-        {/* ==============================
-            HEADER
-        ============================== */}
-
+        {/* HEADER */}
         <div className="result-header">
+          <div className="result-main-icon">🎭</div>
 
-          <div className="result-main-icon">
-            🎭
-          </div>
-
-          <h1>
-            Multi-Mood Detection
-          </h1>
+          <h1>Multi-Mood Detection</h1>
 
           <p>
             Detect multiple emotional moods present
             throughout your uploaded song.
           </p>
-
         </div>
 
-        {/* ==============================
-            SONG CARD
-        ============================== */}
-
+        {/* SONG CARD */}
         <div className="song-result-card">
-
-          <div className="song-icon">
-            🎵
-          </div>
+          <div className="song-icon">🎵</div>
 
           <div>
-
-            <span>
-              ANALYZED SONG
-            </span>
-
-            <h3>
-              {songName}
-            </h3>
-
+            <span>ANALYZED SONG</span>
+            <h3>{songName}</h3>
           </div>
-
         </div>
 
-        {/* ==============================
-            LOADING
-        ============================== */}
-
+        {/* LOADING */}
         {loading ? (
-
           <div className="analysis-card">
-
-            <h2>
-              ⏳ Loading Analysis...
-            </h2>
-
-            <p>
-              Please wait while the Multi-Mood
-              result is being loaded.
-            </p>
-
+            <h2>⏳ Loading Analysis...</h2>
+            <p>Please wait while the result is loaded.</p>
           </div>
-
         ) : moods.length === 0 ? (
-
-          /* ==============================
-             NO DATA
-          ============================== */
-
+          /* NO DATA */
           <div className="analysis-card">
-
-            <h2>
-              🎭 No Multi-Mood Data
-            </h2>
+            <h2>🎭 No Multi-Mood Data</h2>
 
             <p>
-              Please upload and analyze a music
-              file first.
+              Please upload and analyze a music file first.
             </p>
 
             <Link
@@ -288,177 +162,96 @@ function MultiMood() {
               className="result-action-btn"
               style={{
                 display: "inline-flex",
-                marginTop: "20px"
+                marginTop: "20px",
               }}
             >
-              🎵
-              <span>
-                Upload Music
-              </span>
+              🎵 <span>Upload Music</span>
             </Link>
-
           </div>
-
         ) : (
-
           <>
-
-            {/* ==============================
-                DOMINANT MOOD
-            ============================== */}
-
+            {/* DOMINANT MOOD */}
             <div className="analysis-card">
-
-              <h2>
-                👑 Dominant Mood
-              </h2>
+              <h2>👑 Dominant Mood</h2>
 
               <div
                 style={{
                   textAlign: "center",
-                  padding: "20px"
+                  padding: "20px",
                 }}
               >
-
-                <div
-                  style={{
-                    fontSize: "55px"
-                  }}
-                >
-                  {getMoodEmoji(
-                    dominantMood
-                  )}
+                <div style={{ fontSize: "55px" }}>
+                  {getMoodEmoji(dominantMood)}
                 </div>
 
-                <h2
-                  style={{
-                    marginTop: "10px"
-                  }}
-                >
+                <h2 style={{ marginTop: "10px" }}>
                   {dominantMood}
                 </h2>
 
                 <p>
-                  This is the strongest emotional
-                  mood detected in the song.
+                  This is the strongest emotional mood
+                  detected in the song.
                 </p>
-
               </div>
-
             </div>
 
-
-            {/* ==============================
-                DETECTED MOODS
-            ============================== */}
-
+            {/* DETECTED MOODS */}
             <div className="analysis-card">
-
-              <h2>
-                🎭 Detected Moods
-              </h2>
+              <h2>🎭 Detected Moods</h2>
 
               <p>
-                The AI detected multiple emotional
-                moods in the uploaded song.
+                The AI detected multiple emotional moods
+                in the uploaded song.
               </p>
 
               <div className="multi-mood-list">
+                {moods.map((item, index) => {
+                  const moodName = item.mood || "Unknown";
+                  const percentage = Math.max(
+                    0,
+                    Math.min(100, item.percentage)
+                  );
 
-                {moods.map(
-                  (item, index) => {
-
-                    const moodName =
-                      item.mood ||
-                      "Unknown";
-
-                    const percentage =
-                      Number(
-                        item.percentage
-                      ) || 0;
-
-                    return (
-
-                      <div
-                        className="multi-mood-item"
-                        key={`${moodName}-${index}`}
-                      >
-
-                        {/* MOOD ICON */}
-
-                        <div className="multi-mood-icon">
-
-                          {getMoodEmoji(
-                            moodName
-                          )}
-
-                        </div>
-
-                        {/* MOOD INFO */}
-
-                        <div className="multi-mood-info">
-
-                          <div className="multi-mood-title">
-
-                            <strong>
-                              {moodName}
-                            </strong>
-
-                            <span>
-                              {percentage.toFixed(
-                                0
-                              )}%
-                            </span>
-
-                          </div>
-
-                          {/* PROGRESS BAR */}
-
-                          <div className="multi-mood-bar">
-
-                            <div
-                              className="multi-mood-progress"
-                              style={{
-                                width: `${Math.max(
-                                  0,
-                                  Math.min(
-                                    100,
-                                    percentage
-                                  )
-                                )}%`
-                              }}
-                            />
-
-                          </div>
-
-                          <small>
-                            {getMoodDescription(
-                              moodName
-                            )}
-                          </small>
-
-                        </div>
-
+                  return (
+                    <div
+                      className="multi-mood-item"
+                      key={`${moodName}-${index}`}
+                    >
+                      <div className="multi-mood-icon">
+                        {getMoodEmoji(moodName)}
                       </div>
 
-                    );
-                  }
-                )}
+                      <div className="multi-mood-info">
+                        <div className="multi-mood-title">
+                          <strong>{moodName}</strong>
 
+                          <span>
+                            {item.percentage.toFixed(0)}%
+                          </span>
+                        </div>
+
+                        <div className="multi-mood-bar">
+                          <div
+                            className="multi-mood-progress"
+                            style={{
+                              width: `${percentage}%`,
+                            }}
+                          />
+                        </div>
+
+                        <small>
+                          {getMoodDescription(moodName)}
+                        </small>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-
             </div>
 
-
-            {/* ==============================
-                ANALYSIS SUMMARY
-            ============================== */}
-
+            {/* ANALYSIS SUMMARY */}
             <div className="analysis-card">
-
-              <h2>
-                📊 Analysis Summary
-              </h2>
+              <h2>📊 Analysis Summary</h2>
 
               <div
                 style={{
@@ -466,211 +259,149 @@ function MultiMood() {
                   gridTemplateColumns:
                     "repeat(auto-fit, minmax(150px, 1fr))",
                   gap: "15px",
-                  marginTop: "20px"
+                  marginTop: "20px",
                 }}
               >
-
                 {/* DETECTED MOODS */}
-
-                <div
-                  style={{
-                    padding: "18px",
-                    background: "#f8f8ff",
-                    borderRadius: "15px",
-                    textAlign: "center"
-                  }}
-                >
-
-                  <strong
-                    style={{
-                      display: "block",
-                      fontSize: "25px",
-                      color: "#667eea"
-                    }}
-                  >
+                <div style={summaryCardStyle}>
+                  <strong style={summaryValueStyle}>
                     {moods.length}
                   </strong>
-
-                  <span>
-                    Detected Moods
-                  </span>
-
+                  <span>Detected Moods</span>
                 </div>
-
 
                 {/* MOOD CHANGES */}
-
-                <div
-                  style={{
-                    padding: "18px",
-                    background: "#f8f8ff",
-                    borderRadius: "15px",
-                    textAlign: "center"
-                  }}
-                >
-
-                  <strong
-                    style={{
-                      display: "block",
-                      fontSize: "25px",
-                      color: "#667eea"
-                    }}
-                  >
-                    {moodChanges}
+                <div style={summaryCardStyle}>
+                  <strong style={summaryValueStyle}>
+                    {moodChanges ?? "—"}
                   </strong>
-
-                  <span>
-                    Mood Changes
-                  </span>
-
+                  <span>Mood Changes</span>
                 </div>
 
-
                 {/* DOMINANT MOOD */}
-
-                <div
-                  style={{
-                    padding: "18px",
-                    background: "#f8f8ff",
-                    borderRadius: "15px",
-                    textAlign: "center"
-                  }}
-                >
-
+                <div style={summaryCardStyle}>
                   <strong
                     style={{
-                      display: "block",
-                      fontSize: "25px",
-                      color: "#667eea"
+                      ...summaryValueStyle,
+                      fontSize: "20px",
                     }}
                   >
                     {dominantMood || "—"}
                   </strong>
-
-                  <span>
-                    Dominant Mood
-                  </span>
-
+                  <span>Dominant Mood</span>
                 </div>
-
               </div>
-
             </div>
 
+            {/* EMOTIONAL PROFILE */}
+            <div className="analysis-card">
+              <h2>🧠 Emotional Profile</h2>
 
-            {/* ==============================
-                EMOTIONAL JOURNEY
-            ============================== */}
+              <p>
+                These are the strongest moods according to
+                their multi-mood scores. They are not
+                chronological transitions.
+              </p>
 
-            {journey.length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: "12px",
+                  marginTop: "20px",
+                }}
+              >
+                {strongestMoods.map((item) => (
+                  <div
+                    key={item.mood}
+                    style={{
+                      padding: "12px 18px",
+                      background: "#f8f8ff",
+                      borderRadius: "12px",
+                      textAlign: "center",
+                      fontWeight: "600",
+                    }}
+                  >
+                    <div style={{ fontSize: "28px" }}>
+                      {getMoodEmoji(item.mood)}
+                    </div>
 
-              <div className="analysis-card">
+                    <div>{item.mood}</div>
 
-                <h2>
-                  🧠 Emotional Journey
-                </h2>
-
-                <p>
-                  Strong emotional moods detected
-                  throughout the analysis.
-                </p>
-
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    gap: "12px",
-                    marginTop: "20px",
-                    fontSize: "20px",
-                    fontWeight: "600"
-                  }}
-                >
-
-                  {journey.map(
-                    (mood, index) => (
-
-                      <span
-                        key={`${mood}-${index}`}
-                      >
-
-                        {index > 0 &&
-                          " → "}
-
-                        {getMoodEmoji(
-                          mood
-                        )}{" "}
-
-                        {mood}
-
-                      </span>
-
-                    )
-                  )}
-
-                </div>
-
+                    <div
+                      style={{
+                        color: "#667eea",
+                        marginTop: "4px",
+                      }}
+                    >
+                      {item.percentage.toFixed(0)}%
+                    </div>
+                  </div>
+                ))}
               </div>
 
-            )}
-
+              <p
+                style={{
+                  fontSize: "14px",
+                  marginTop: "18px",
+                }}
+              >
+                To see when a mood changes during the song,
+                open Mood Timeline or Mood Transition.
+              </p>
+            </div>
           </>
-
         )}
 
-        {/* ==============================
-            ACTION BUTTONS
-        ============================== */}
-
+        {/* NAVIGATION */}
         <div className="result-actions">
-
           <Link
             to="/mood-result"
             className="result-action-btn"
           >
-            😊
-            <span>
-              Mood Result
-            </span>
+            😊 <span>Mood Result</span>
           </Link>
 
           <Link
             to="/mood-timeline"
             className="result-action-btn"
           >
-            📈
-            <span>
-              Mood Timeline
-            </span>
+            📈 <span>Mood Timeline</span>
           </Link>
 
           <Link
             to="/mood-transition"
             className="result-action-btn"
           >
-            🔄
-            <span>
-              Mood Transition
-            </span>
+            🔄 <span>Mood Transition</span>
           </Link>
 
           <Link
             to="/feedback"
             className="result-feature-btn"
           >
-            💬
-            <span>
-              Give Feedback
-            </span>
+            💬 <span>Give Feedback</span>
           </Link>
-
         </div>
-
       </div>
-
     </div>
   );
 }
+
+const summaryCardStyle = {
+  padding: "18px",
+  background: "#f8f8ff",
+  borderRadius: "15px",
+  textAlign: "center",
+};
+
+const summaryValueStyle = {
+  display: "block",
+  fontSize: "25px",
+  color: "#667eea",
+  marginBottom: "5px",
+};
 
 export default MultiMood;
