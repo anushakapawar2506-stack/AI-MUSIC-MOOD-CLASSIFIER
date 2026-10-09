@@ -1,4 +1,5 @@
-﻿from dotenv import load_dotenv
+﻿
+from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
@@ -20,15 +21,24 @@ CHROMA_DIR = os.path.join(
     "chroma_db"
 )
 
+# Reuse these objects instead of recreating them
+_embeddings = None
+_vectorstore = None
+_retriever = None
+
 
 def get_embeddings():
-    return GoogleGenerativeAIEmbeddings(
-        model="models/gemini-embedding-001"
-    )
+    global _embeddings
+
+    if _embeddings is None:
+        _embeddings = GoogleGenerativeAIEmbeddings(
+            model="models/gemini-embedding-001"
+        )
+
+    return _embeddings
 
 
 def create_rag_database():
-
     with open(KNOWLEDGE_FILE, "r", encoding="utf-8") as f:
         text = f.read()
 
@@ -54,33 +64,50 @@ def create_rag_database():
     return vectorstore
 
 
+def get_vectorstore():
+    global _vectorstore
+
+    if _vectorstore is None:
+        if not os.path.isdir(CHROMA_DIR):
+            raise FileNotFoundError(
+                "Chroma database not found: " + CHROMA_DIR
+            )
+
+        _vectorstore = Chroma(
+            persist_directory=CHROMA_DIR,
+            embedding_function=get_embeddings()
+        )
+
+    return _vectorstore
+
+
 def get_retriever():
+    global _retriever
 
-    embeddings = get_embeddings()
+    if _retriever is None:
+        _retriever = get_vectorstore().as_retriever(
+            search_kwargs={"k": 3}
+        )
 
-    vectorstore = Chroma(
-        persist_directory=CHROMA_DIR,
-        embedding_function=embeddings
-    )
-
-    return vectorstore.as_retriever(
-        search_kwargs={"k": 3}
-    )
+    return _retriever
 
 
 def retrieve_music_knowledge(query):
+    try:
+        retriever = get_retriever()
+        documents = retriever.invoke(query)
 
-    retriever = get_retriever()
+        if not documents:
+            return ""
 
-    documents = retriever.invoke(query)
+        return "\n\n".join(
+            document.page_content
+            for document in documents
+        )
 
-    if not documents:
+    except Exception as e:
+        print("RAG retrieval error:", e)
         return ""
-
-    return "\n\n".join(
-        document.page_content
-        for document in documents
-    )
 
 
 if __name__ == "__main__":
