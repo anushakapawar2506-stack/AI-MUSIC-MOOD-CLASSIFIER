@@ -129,7 +129,9 @@ def extract_audio_features(file_path):
         audio, sr = librosa.load(
             file_path,
             sr=None,
-            mono=True
+            mono=True,
+            duration=30
+
         )
 
         duration = librosa.get_duration(
