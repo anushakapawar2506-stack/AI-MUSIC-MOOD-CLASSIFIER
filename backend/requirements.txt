@@ -15,3 +15,4 @@ pypdf
 gunicorn
 langchain-chroma
 langchain-text-splitters
+resampy
