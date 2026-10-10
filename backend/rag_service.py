@@ -1,33 +1,38 @@
 ﻿
+import os
 from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
-import os
 
+# Load environment variables
 load_dotenv()
 
+# Base directory: backend/
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Knowledge file path
 KNOWLEDGE_FILE = os.path.join(
     BASE_DIR,
     "rag_data",
     "music_mood_knowledge.txt"
 )
 
+# Chroma database directory
 CHROMA_DIR = os.path.join(
     BASE_DIR,
     "rag_data",
     "chroma_db"
 )
 
-# Reuse these objects instead of recreating them
+# Reuse objects instead of recreating them
 _embeddings = None
 _vectorstore = None
 _retriever = None
 
 
 def get_embeddings():
+    """Create and reuse Google Gemini embeddings."""
     global _embeddings
 
     if _embeddings is None:
@@ -39,8 +44,18 @@ def get_embeddings():
 
 
 def create_rag_database():
-    with open(KNOWLEDGE_FILE, "r", encoding="utf-8") as f:
-        text = f.read()
+    """Create the Chroma database from the knowledge file."""
+
+    if not os.path.isfile(KNOWLEDGE_FILE):
+        raise FileNotFoundError(
+            "Knowledge file not found: " + KNOWLEDGE_FILE
+        )
+
+    with open(KNOWLEDGE_FILE, "r", encoding="utf-8") as file:
+        text = file.read()
+
+    if not text.strip():
+        raise ValueError("The music mood knowledge file is empty.")
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=500,
@@ -48,8 +63,9 @@ def create_rag_database():
     )
 
     documents = splitter.create_documents([text])
-
     embeddings = get_embeddings()
+
+    os.makedirs(CHROMA_DIR, exist_ok=True)
 
     vectorstore = Chroma.from_documents(
         documents=documents,
@@ -65,22 +81,31 @@ def create_rag_database():
 
 
 def get_vectorstore():
+    """Load and reuse the existing Chroma database."""
     global _vectorstore
 
     if _vectorstore is None:
-        
-if not os.path.isdir(CHROMA_DIR):
-    print("RAG DEBUG - Chroma directory missing:", CHROMA_DIR)
-    print("RAG DEBUG - Backend directory:", BASE_DIR)
-    print("RAG DEBUG - rag_data exists:",
-          os.path.isdir(os.path.join(BASE_DIR, "rag_data")))
-    print("RAG DEBUG - Knowledge file exists:",
-          os.path.isfile(KNOWLEDGE_FILE))
-    print("RAG DEBUG - Backend files:", os.listdir(BASE_DIR))
+        print("RAG DEBUG - Expected database path:", CHROMA_DIR)
+        print("RAG DEBUG - Backend directory:", BASE_DIR)
+        print(
+            "RAG DEBUG - rag_data exists:",
+            os.path.isdir(os.path.join(BASE_DIR, "rag_data"))
+        )
+        print(
+            "RAG DEBUG - Knowledge file exists:",
+            os.path.isfile(KNOWLEDGE_FILE)
+        )
+        print(
+            "RAG DEBUG - Chroma directory exists:",
+            os.path.isdir(CHROMA_DIR)
+        )
 
-    raise FileNotFoundError(
-        "Chroma database not found: " + CHROMA_DIR
-    )
+        if not os.path.isdir(CHROMA_DIR):
+            print("RAG DEBUG - Backend files:", os.listdir(BASE_DIR))
+
+            raise FileNotFoundError(
+                "Chroma database not found: " + CHROMA_DIR
+            )
 
         _vectorstore = Chroma(
             persist_directory=CHROMA_DIR,
@@ -91,6 +116,7 @@ if not os.path.isdir(CHROMA_DIR):
 
 
 def get_retriever():
+    """Create and reuse the retriever."""
     global _retriever
 
     if _retriever is None:
@@ -102,20 +128,28 @@ def get_retriever():
 
 
 def retrieve_music_knowledge(query):
+    """Retrieve relevant music mood knowledge for a query."""
+
     try:
         retriever = get_retriever()
         documents = retriever.invoke(query)
 
         if not documents:
+            print("RAG DEBUG - No relevant documents found.")
             return ""
 
-        return "\n\n".join(
+        result = "\n\n".join(
             document.page_content
             for document in documents
         )
 
-    except Exception as e:
-        print("RAG retrieval error:", e)
+        print("RAG retrieval successful.")
+        print("Retrieved documents:", len(documents))
+
+        return result
+
+    except Exception as error:
+        print("RAG retrieval error:", repr(error))
         return ""
 
 
