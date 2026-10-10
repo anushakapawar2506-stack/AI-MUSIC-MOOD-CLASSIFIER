@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 
 // Render Backend URL
-const API_URL = "https://ai-music-mood-classifier-1-bzvp.onrender.com";
+const API_URL = "https://ai-music-mood-backend.onrender.com";
 
 function Upload() {
   const [file, setFile] = useState(null);
