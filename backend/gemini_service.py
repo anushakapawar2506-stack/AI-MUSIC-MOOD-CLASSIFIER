@@ -9,13 +9,14 @@ load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
+
 llm = ChatGoogleGenerativeAI(
     model="gemini-3.5-flash-lite",
     google_api_key=API_KEY,
-    temperature=0.3,
-    max_retries=2,
-    timeout=60
+    max_retries=0,
+    timeout=20
 )
+
 
 
 def generate_mood_explanation(
