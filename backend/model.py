@@ -53,7 +53,9 @@ def extract_ml_features(file_path):
     y, sr = librosa.load(
         file_path,
         sr=None,
-        mono=True
+        mono=True,
+         duration=30
+        
     )
 
     if len(y) == 0:
