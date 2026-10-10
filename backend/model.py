@@ -51,12 +51,12 @@ def extract_ml_features(file_path):
 
     # Load audio
     y, sr = librosa.load(
-        file_path,
-        sr=None,
-        mono=True,
-         duration=30
-        
-    )
+    file_path,
+    sr=22050,
+    mono=True,
+    duration=15,
+    res_type="kaiser_fast"
+)
 
     if len(y) == 0:
         raise ValueError(
