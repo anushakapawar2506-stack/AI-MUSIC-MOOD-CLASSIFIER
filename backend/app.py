@@ -29,16 +29,20 @@ app = Flask(__name__)
 # CORS CONFIGURATION FOR RENDER FRONTEND
 # ==========================================
 
+app = Flask(__name__)
+
 CORS(
     app,
     resources={
         r"/*": {
             "origins": [
-                "https://ai-music-mood-classifier-frontend.onrender.com",
-                "http://localhost:5173"
+                "https://ai-music-mood-classifier-frontend.onrender.com"
             ]
         }
     },
+    supports_credentials=False
+)
+
     methods=[
         "GET",
         "POST",
