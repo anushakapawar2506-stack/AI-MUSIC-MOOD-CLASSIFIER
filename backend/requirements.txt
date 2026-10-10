@@ -16,3 +16,5 @@ gunicorn
 langchain-chroma
 langchain-text-splitters
 resampy
+
+psycopg2-binary==2.9.13
