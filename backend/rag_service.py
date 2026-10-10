@@ -68,10 +68,19 @@ def get_vectorstore():
     global _vectorstore
 
     if _vectorstore is None:
-        if not os.path.isdir(CHROMA_DIR):
-            raise FileNotFoundError(
-                "Chroma database not found: " + CHROMA_DIR
-            )
+        
+if not os.path.isdir(CHROMA_DIR):
+    print("RAG DEBUG - Chroma directory missing:", CHROMA_DIR)
+    print("RAG DEBUG - Backend directory:", BASE_DIR)
+    print("RAG DEBUG - rag_data exists:",
+          os.path.isdir(os.path.join(BASE_DIR, "rag_data")))
+    print("RAG DEBUG - Knowledge file exists:",
+          os.path.isfile(KNOWLEDGE_FILE))
+    print("RAG DEBUG - Backend files:", os.listdir(BASE_DIR))
+
+    raise FileNotFoundError(
+        "Chroma database not found: " + CHROMA_DIR
+    )
 
         _vectorstore = Chroma(
             persist_directory=CHROMA_DIR,
