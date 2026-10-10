@@ -19,6 +19,7 @@ try:
         get_predictions,
         delete_prediction,
         clear_predictions,
+        save_feedback,
     )
     from backend.model import predict_mood_from_file
     from backend.gemini_service import generate_mood_explanation
@@ -38,6 +39,7 @@ except ModuleNotFoundError as exc:
         get_predictions,
         delete_prediction,
         clear_predictions,
+         save_feedback
     )
     from model import predict_mood_from_file
     from gemini_service import generate_mood_explanation
@@ -526,6 +528,75 @@ def multi_mood():
             500,
         )
 
+
+# ==================================================
+# SAVE USER FEEDBACK
+# ==================================================
+
+@app.route("/feedback", methods=["POST"])
+def submit_feedback():
+    try:
+        data = request.get_json(silent=True)
+
+        if not isinstance(data, dict):
+            return error_response(
+                "Request body must be valid JSON.",
+                400,
+            )
+
+        helpfulness = data.get("helpfulness")
+        rating = data.get("rating")
+
+        if not isinstance(helpfulness, str) or not helpfulness.strip():
+            return error_response(
+                "Please select a feedback option.",
+                400,
+            )
+
+        try:
+            rating = int(rating)
+        except (TypeError, ValueError):
+            return error_response(
+                "Rating must be a number from 1 to 5.",
+                400,
+            )
+
+        if rating < 1 or rating > 5:
+            return error_response(
+                "Rating must be between 1 and 5.",
+                400,
+            )
+
+        feedback_data = {
+            "songName": str(data.get("songName", "")),
+            "mood": str(data.get("mood", "")),
+            "confidence": str(data.get("confidence", "")),
+            "helpfulness": helpfulness.strip(),
+            "rating": rating,
+            "feedback": str(data.get("feedback", "")),
+            "submittedAt": str(
+                data.get("submittedAt")
+                or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ),
+        }
+
+        feedback_id = save_feedback(feedback_data)
+
+        return jsonify({
+            "success": True,
+            "message": "Feedback saved successfully.",
+            "feedback_id": feedback_id,
+        }), 201
+
+    except (ValueError, TypeError) as exc:
+        return error_response(str(exc), 400)
+
+    except Exception as exc:
+        app.logger.exception("Failed to save feedback.")
+        return error_response(
+            "Could not save feedback. Please try again.",
+            500,
+        )
 
 # ==================================================
 # HISTORY
