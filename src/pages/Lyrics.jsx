@@ -59,7 +59,7 @@ function Lyrics() {
     try {
       
 const response = await fetch(
-  "https://ai-music-mood-backend.onrender.com/lyrics",
+  "/lyrics",
   {
 
           method: "POST",

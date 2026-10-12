@@ -5,7 +5,7 @@ import axios from "axios";
 
 const API_URL = (
   import.meta.env.VITE_API_URL ||
-  "https://ai-music-mood-backend.onrender.com"
+  ""
 ).replace(/\/+$/, "");
 
 function Feedback() {
