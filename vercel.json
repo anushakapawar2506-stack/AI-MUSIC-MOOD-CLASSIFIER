@@ -1,0 +1,76 @@
+
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "app": {
+      "root": ".",
+      "framework": "vite"
+    },
+    "backend": {
+      "root": "backend",
+      "framework": "flask"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/health",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/mood",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/lyrics",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/mood-transition",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/multi-mood",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/feedback",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/history",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/history/:id",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "app"
+      }
+    }
+  ]
+}
