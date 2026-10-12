@@ -1,6 +1,8 @@
 ﻿
 import os
-import traceback
+import gc
+import uuid
+import logging
 from datetime import datetime
 
 import librosa
@@ -9,9 +11,6 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
-# Support both:
-# 1. gunicorn backend.app:app  (project root)
-# 2. python app.py             (backend folder)
 try:
     from backend.database import (
         create_history_table,
@@ -24,12 +23,8 @@ try:
     from backend.model import predict_mood_from_file
     from backend.gemini_service import generate_mood_explanation
 except ModuleNotFoundError as exc:
-    if not (
-        exc.name
-        and (
-            exc.name == "backend"
-            or exc.name.startswith("backend.")
-        )
+    if not exc.name or not (
+        exc.name == "backend" or exc.name.startswith("backend.")
     ):
         raise
 
@@ -39,7 +34,7 @@ except ModuleNotFoundError as exc:
         get_predictions,
         delete_prediction,
         clear_predictions,
-         save_feedback
+        save_feedback,
     )
     from model import predict_mood_from_file
     from gemini_service import generate_mood_explanation
@@ -50,28 +45,55 @@ except ModuleNotFoundError as exc:
 # ==================================================
 
 app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
 
-FRONTEND_ORIGIN = (
-    "https://ai-music-mood-classifier-frontend.onrender.com"
+# Set this environment variable if your frontend uses
+# a custom domain or a different hosting provider.
+configured_origins = os.getenv("FRONTEND_ORIGINS", "")
+
+FRONTEND_ORIGINS = [
+    "https://ai-music-mood-classifier-frontend.onrender.com",
+    "http://localhost:5173",
+]
+
+FRONTEND_ORIGINS.extend(
+    origin.strip()
+    for origin in configured_origins.split(",")
+    if origin.strip()
 )
+
+# Remove duplicates while preserving order.
+FRONTEND_ORIGINS = list(dict.fromkeys(FRONTEND_ORIGINS))
 
 CORS(
     app,
     resources={
         r"/*": {
-            "origins": [FRONTEND_ORIGIN],
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
+            "origins": [
+                *FRONTEND_ORIGINS,
+                r"https://.*\.vercel\.app",
+            ],
+            "methods": [
+                "GET",
+                "POST",
+                "PUT",
+                "DELETE",
+                "OPTIONS",
+            ],
+            "allow_headers": [
+                "Content-Type",
+                "Authorization",
+            ],
         }
     },
     supports_credentials=False,
-    always_send=True,
+    max_age=600,
 )
 
-MAX_UPLOAD_MB = 50
+MAX_UPLOAD_MB = 10
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
-MAX_ANALYSIS_SECONDS = 120
-FEATURE_SECONDS = 30
+MAX_ANALYSIS_SECONDS = 50
+FEATURE_SECONDS = 10
 SEGMENT_SECONDS = 10
 
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
@@ -84,7 +106,6 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 ALLOWED_EXTENSIONS = {"mp3", "wav", "ogg", "m4a", "flac"}
 
-# Initialize the existing history database.
 create_history_table()
 
 
@@ -103,8 +124,7 @@ def allowed_file(filename):
     return (
         bool(filename)
         and "." in filename
-        and filename.rsplit(".", 1)[1].lower()
-        in ALLOWED_EXTENSIONS
+        and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
     )
 
 
@@ -112,42 +132,43 @@ def save_uploaded_file(file):
     if file is None or not file.filename:
         raise ValueError("No audio file selected.")
 
-    if not allowed_file(file.filename):
+    original_name = secure_filename(file.filename)
+
+    if not original_name or not allowed_file(original_name):
         raise ValueError(
             "Unsupported audio format. Use MP3, WAV, OGG, M4A or FLAC."
         )
 
-    filename = secure_filename(file.filename)
+    extension = original_name.rsplit(".", 1)[1].lower()
+    filename = f"{uuid.uuid4().hex}.{extension}"
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
 
-    if not filename:
-        raise ValueError("Invalid audio filename.")
-
-    file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
     file.save(file_path)
 
     if not os.path.isfile(file_path) or os.path.getsize(file_path) == 0:
-        raise ValueError("The uploaded audio file is empty.")
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
+
+        raise ValueError("Uploaded audio file is empty.")
 
     return filename, file_path
 
 
 def load_audio(file_path, duration=None):
-    """Load mono audio with a bounded duration when requested."""
     audio, sr = librosa.load(
         file_path,
-        sr=None,
+        sr=22050,
         mono=True,
         duration=duration,
+        res_type="kaiser_fast",
+        dtype=np.float32,
     )
-
-    if audio.size == 0:
-        raise ValueError("The audio file is empty or unreadable.")
-
     return audio, sr
 
 
 def estimate_tempo(rms):
-    """Keep the project's existing RMS-based tempo estimate."""
     try:
         return round(80 + min(float(rms) * 500, 80), 2)
     except (TypeError, ValueError):
@@ -155,27 +176,41 @@ def estimate_tempo(rms):
 
 
 def extract_audio_features(file_path):
-    audio, sr = load_audio(file_path, duration=FEATURE_SECONDS)
+    audio = None
 
-    duration = librosa.get_duration(y=audio, sr=sr)
-    rms = float(np.mean(librosa.feature.rms(y=audio)[0]))
-    zcr = float(np.mean(librosa.feature.zero_crossing_rate(y=audio)[0]))
-    centroid = float(np.mean(
-        librosa.feature.spectral_centroid(y=audio, sr=sr)[0]
-    ))
+    try:
+        audio, sr = load_audio(
+            file_path,
+            duration=FEATURE_SECONDS,
+        )
 
-    return {
-        "duration": round(float(duration), 2),
-        "sample_rate": int(sr),
-        "tempo": estimate_tempo(rms),
-        "rms": round(rms, 4),
-        "zcr": round(zcr, 4),
-        "spectral_centroid": round(centroid, 2),
-    }
+        duration = librosa.get_duration(y=audio, sr=sr)
+
+        rms = float(np.mean(librosa.feature.rms(y=audio)[0]))
+        zcr = float(
+            np.mean(librosa.feature.zero_crossing_rate(y=audio)[0])
+        )
+        centroid = float(
+            np.mean(
+                librosa.feature.spectral_centroid(y=audio, sr=sr)[0]
+            )
+        )
+
+        return {
+            "duration": round(float(duration), 2),
+            "sample_rate": int(sr),
+            "tempo": estimate_tempo(rms),
+            "rms": round(rms, 4),
+            "zcr": round(zcr, 4),
+            "spectral_centroid": round(centroid, 2),
+        }
+
+    finally:
+        audio = None
+        gc.collect()
 
 
 def classify_segment(rms):
-    """Existing rule-based classification used by segment endpoints."""
     tempo = estimate_tempo(rms)
 
     if tempo >= 130 and rms >= 0.12:
@@ -193,7 +228,7 @@ def classify_segment(rms):
 
 
 # ==================================================
-# HEALTH CHECK
+# HEALTH
 # ==================================================
 
 @app.route("/", methods=["GET"])
@@ -214,13 +249,13 @@ def health():
 
 
 # ==================================================
-# SERVE UPLOADED AUDIO
+# AUDIO FILE SERVING
 # ==================================================
 
 @app.route("/uploads/<path:filename>", methods=["GET"])
 def uploaded_file(filename):
     return send_from_directory(
-        app.config["UPLOAD_FOLDER"],
+        UPLOAD_FOLDER,
         filename,
         as_attachment=False,
     )
@@ -238,11 +273,11 @@ def mood_prediction():
 
         filename, file_path = save_uploaded_file(request.files["file"])
 
-        print("Analyzing:", filename, flush=True)
+        app.logger.info("Analyzing uploaded audio: %s", filename)
 
         features = extract_audio_features(file_path)
 
-        # Uses the trained model in backend/model.py.
+        # Keep the existing trained Random Forest model.
         model_result = predict_mood_from_file(file_path)
 
         mood = model_result["mood"]
@@ -260,8 +295,8 @@ def mood_prediction():
                 features["zcr"],
                 features["spectral_centroid"],
             )
-        except Exception as exc:
-            print("Gemini explanation failed:", repr(exc), flush=True)
+        except Exception:
+            app.logger.exception("Gemini explanation failed")
             explanation = (
                 f"The model predicted {mood} mood with "
                 f"{confidence}% confidence and {intensity} intensity."
@@ -288,11 +323,17 @@ def mood_prediction():
         })
 
     except ValueError as exc:
-        return error_response(exc, 400)
-    except Exception as exc:
-        print("ERROR IN /mood:", repr(exc), flush=True)
-        traceback.print_exc()
-        return error_response("Mood analysis failed. Check backend logs.", 500)
+        return error_response(str(exc), 400)
+
+    except Exception:
+        app.logger.exception("Error in /mood")
+        return error_response(
+            "Mood analysis failed. Check backend logs.",
+            500,
+        )
+
+    finally:
+        gc.collect()
 
 
 # ==================================================
@@ -312,21 +353,24 @@ def lyrics_analysis():
 
         word_groups = {
             "Happy": [
-                "happy", "love", "smile", "joy", "beautiful", "fun",
-                "dance", "celebrate", "happiness", "laugh", "lovely",
-                "wonderful",
+                "happy", "love", "smile", "joy", "beautiful",
+                "fun", "dance", "celebrate", "happiness",
+                "laugh", "lovely", "wonderful",
             ],
             "Sad": [
-                "sad", "cry", "tears", "alone", "pain", "broken",
-                "miss", "lonely", "sorrow", "hurt", "lost", "goodbye",
+                "sad", "cry", "tears", "alone", "pain",
+                "broken", "miss", "lonely", "sorrow",
+                "hurt", "lost", "goodbye",
             ],
             "Energetic": [
-                "dance", "party", "fire", "power", "energy", "rock",
-                "move", "crazy", "strong", "beat", "jump", "run",
+                "dance", "party", "fire", "power", "energy",
+                "rock", "move", "crazy", "strong", "beat",
+                "jump", "run",
             ],
             "Relaxed": [
-                "calm", "peace", "relax", "quiet", "dream", "sleep",
-                "slow", "peaceful", "serene", "soft", "nature",
+                "calm", "peace", "relax", "quiet", "dream",
+                "sleep", "slow", "peaceful", "serene",
+                "soft", "nature",
             ],
         }
 
@@ -336,12 +380,12 @@ def lyrics_analysis():
         }
 
         if max(scores.values()) == 0:
-            mood = "Neutral"
-            confidence = 50
+            mood, confidence = "Neutral", 50
         else:
             mood = max(scores, key=scores.get)
-            total = sum(scores.values())
-            confidence = round(scores[mood] / total * 100)
+            confidence = round(
+                scores[mood] / sum(scores.values()) * 100
+            )
 
         keywords = list(dict.fromkeys(
             word
@@ -351,23 +395,11 @@ def lyrics_analysis():
         ))
 
         meanings = {
-            "Happy": (
-                "The lyrics express positive emotions such as love, "
-                "happiness, joy and uplifting feelings."
-            ),
-            "Sad": (
-                "The lyrics express sadness, pain, loneliness or loss."
-            ),
-            "Energetic": (
-                "The lyrics suggest energy, excitement, movement or power."
-            ),
-            "Relaxed": (
-                "The lyrics suggest calm, peaceful and soothing emotions."
-            ),
-            "Neutral": (
-                "There are not enough emotional keywords to identify "
-                "a specific mood."
-            ),
+            "Happy": "The lyrics express positive emotions, happiness and joy.",
+            "Sad": "The lyrics express sadness, pain, loneliness or loss.",
+            "Energetic": "The lyrics suggest energy, excitement and power.",
+            "Relaxed": "The lyrics suggest calm and soothing emotions.",
+            "Neutral": "There are not enough emotional keywords to identify a specific mood.",
         }
 
         return jsonify({
@@ -381,9 +413,8 @@ def lyrics_analysis():
             "lyrics_length": len(lyrics),
         })
 
-    except Exception as exc:
-        print("ERROR IN /lyrics:", repr(exc), flush=True)
-        traceback.print_exc()
+    except Exception:
+        app.logger.exception("Error in /lyrics")
         return error_response("Lyrics analysis failed.", 500)
 
 
@@ -393,13 +424,14 @@ def lyrics_analysis():
 
 @app.route("/mood-transition", methods=["POST"])
 def mood_transition():
+    audio = None
+
     try:
         if "file" not in request.files:
             return error_response("No audio file uploaded.", 400)
 
         filename, file_path = save_uploaded_file(request.files["file"])
 
-        # Analyze at most 120 seconds to reduce memory use on Render.
         audio, sr = load_audio(
             file_path,
             duration=MAX_ANALYSIS_SECONDS,
@@ -414,40 +446,41 @@ def mood_transition():
                 start_time + SEGMENT_SECONDS,
                 analyzed_duration,
             )
-
-            start_sample = int(start_time * sr)
-            end_sample = int(end_time * sr)
-            segment = audio[start_sample:end_sample]
+            segment = audio[
+                int(start_time * sr):int(end_time * sr)
+            ]
 
             if segment.size == 0:
                 break
 
-            rms = float(np.mean(librosa.feature.rms(y=segment)[0]))
-            mood, confidence, tempo = classify_segment(rms)
+            try:
+                rms = float(
+                    np.mean(librosa.feature.rms(y=segment)[0])
+                )
+                mood, confidence, tempo = classify_segment(rms)
 
-            transitions.append({
-                "start": round(start_time, 2),
-                "end": round(end_time, 2),
-                "mood": mood,
-                "confidence": confidence,
-                "rms": round(rms, 4),
-                "tempo": round(tempo, 2),
-            })
+                transitions.append({
+                    "start": round(start_time, 2),
+                    "end": round(end_time, 2),
+                    "mood": mood,
+                    "confidence": confidence,
+                    "rms": round(rms, 4),
+                    "tempo": round(tempo, 2),
+                })
+            finally:
+                del segment
 
             start_time += SEGMENT_SECONDS
 
-        mood_changes = []
-
-        for index in range(1, len(transitions)):
-            previous = transitions[index - 1]["mood"]
-            current = transitions[index]["mood"]
-
-            if previous != current:
-                mood_changes.append({
-                    "from": previous,
-                    "to": current,
-                    "at": transitions[index]["start"],
-                })
+        mood_changes = [
+            {
+                "from": transitions[i - 1]["mood"],
+                "to": transitions[i]["mood"],
+                "at": transitions[i]["start"],
+            }
+            for i in range(1, len(transitions))
+            if transitions[i - 1]["mood"] != transitions[i]["mood"]
+        ]
 
         return jsonify({
             "success": True,
@@ -459,14 +492,18 @@ def mood_transition():
         })
 
     except ValueError as exc:
-        return error_response(exc, 400)
-    except Exception as exc:
-        print("ERROR IN /mood-transition:", repr(exc), flush=True)
-        traceback.print_exc()
+        return error_response(str(exc), 400)
+
+    except Exception:
+        app.logger.exception("Error in /mood-transition")
         return error_response(
             "Mood transition analysis failed. Check backend logs.",
             500,
         )
+
+    finally:
+        audio = None
+        gc.collect()
 
 
 # ==================================================
@@ -475,40 +512,42 @@ def mood_transition():
 
 @app.route("/multi-mood", methods=["POST"])
 def multi_mood():
+    audio = None
+
     try:
         if "file" not in request.files:
             return error_response("No audio file uploaded.", 400)
 
         filename, file_path = save_uploaded_file(request.files["file"])
-        audio, sr = load_audio(file_path, duration=FEATURE_SECONDS)
+
+        audio, sr = load_audio(
+            file_path,
+            duration=FEATURE_SECONDS,
+        )
 
         rms = float(np.mean(librosa.feature.rms(y=audio)[0]))
         tempo = estimate_tempo(rms)
-
-        happy_score = min(100, max(0, int(
-            60 + rms * 100 + (tempo - 100) * 0.2
-        )))
-        energetic_score = min(100, max(0, int(
-            50 + rms * 150 + (tempo - 100) * 0.3
-        )))
-        relaxed_score = min(100, max(0, int(
-            70 - rms * 120 - max(tempo - 80, 0) * 0.2
-        )))
-        sad_score = min(100, max(0, int(
-            65 - rms * 100 - max(tempo - 70, 0) * 0.15
-        )))
+        duration = librosa.get_duration(y=audio, sr=sr)
 
         scores = {
-            "Happy": happy_score,
-            "Energetic": energetic_score,
-            "Relaxed": relaxed_score,
-            "Sad": sad_score,
+            "Happy": min(100, max(0, int(
+                60 + rms * 100 + (tempo - 100) * 0.2
+            ))),
+            "Energetic": min(100, max(0, int(
+                50 + rms * 150 + (tempo - 100) * 0.3
+            ))),
+            "Relaxed": min(100, max(0, int(
+                70 - rms * 120 - max(tempo - 80, 0) * 0.2
+            ))),
+            "Sad": min(100, max(0, int(
+                65 - rms * 100 - max(tempo - 70, 0) * 0.15
+            ))),
         }
 
         return jsonify({
             "success": True,
             "filename": filename,
-            "duration": round(librosa.get_duration(y=audio, sr=sr), 2),
+            "duration": round(duration, 2),
             "dominant_mood": max(scores, key=scores.get),
             "scores": scores,
             "mood_changes": 0,
@@ -519,18 +558,22 @@ def multi_mood():
         })
 
     except ValueError as exc:
-        return error_response(exc, 400)
-    except Exception as exc:
-        print("ERROR IN /multi-mood:", repr(exc), flush=True)
-        traceback.print_exc()
+        return error_response(str(exc), 400)
+
+    except Exception:
+        app.logger.exception("Error in /multi-mood")
         return error_response(
             "Multi-mood analysis failed. Check backend logs.",
             500,
         )
 
+    finally:
+        audio = None
+        gc.collect()
+
 
 # ==================================================
-# SAVE USER FEEDBACK
+# FEEDBACK
 # ==================================================
 
 @app.route("/feedback", methods=["POST"])
@@ -561,7 +604,7 @@ def submit_feedback():
                 400,
             )
 
-        if rating < 1 or rating > 5:
+        if not 1 <= rating <= 5:
             return error_response(
                 "Rating must be between 1 and 5.",
                 400,
@@ -591,12 +634,13 @@ def submit_feedback():
     except (ValueError, TypeError) as exc:
         return error_response(str(exc), 400)
 
-    except Exception as exc:
-        app.logger.exception("Failed to save feedback.")
+    except Exception:
+        app.logger.exception("Failed to save feedback")
         return error_response(
             "Could not save feedback. Please try again.",
             500,
         )
+
 
 # ==================================================
 # HISTORY
@@ -609,39 +653,49 @@ def history():
             "success": True,
             "predictions": get_predictions(),
         })
-    except Exception as exc:
-        print("ERROR IN /history:", repr(exc), flush=True)
-        traceback.print_exc()
-        return error_response("Could not retrieve history.", 500)
+    except Exception:
+        app.logger.exception("Error in /history")
+        return error_response(
+            "Could not retrieve history.",
+            500,
+        )
 
 
 @app.route("/history/<int:prediction_id>", methods=["DELETE"])
 def delete_history(prediction_id):
     try:
         result = delete_prediction(prediction_id)
+
         return jsonify({
             "success": True,
             "message": "Prediction deleted successfully.",
             "result": result,
         })
-    except Exception as exc:
-        print("ERROR DELETING HISTORY ITEM:", repr(exc), flush=True)
-        traceback.print_exc()
-        return error_response("Could not delete this prediction.", 500)
+
+    except Exception:
+        app.logger.exception("Error deleting history item")
+        return error_response(
+            "Could not delete this prediction.",
+            500,
+        )
 
 
 @app.route("/history", methods=["DELETE"])
 def delete_all_history():
     try:
         clear_predictions()
+
         return jsonify({
             "success": True,
             "message": "Prediction history cleared successfully.",
         })
-    except Exception as exc:
-        print("ERROR CLEARING HISTORY:", repr(exc), flush=True)
-        traceback.print_exc()
-        return error_response("Could not clear prediction history.", 500)
+
+    except Exception:
+        app.logger.exception("Error clearing history")
+        return error_response(
+            "Could not clear prediction history.",
+            500,
+        )
 
 
 # ==================================================
@@ -666,15 +720,8 @@ def internal_server_error(_error):
     return error_response("Internal server error.", 500)
 
 
-# ==================================================
-# START SERVER
-# ==================================================
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
-
-    print("AI MUSIC MOOD CLASSIFIER BACKEND", flush=True)
-    print(f"Starting Flask on port {port}", flush=True)
 
     app.run(
         host="0.0.0.0",

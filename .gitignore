@@ -7,4 +7,3 @@ backend/uploads/
 dataset/
 .env
 backend/.env
-backend/rag_data/chroma_db/

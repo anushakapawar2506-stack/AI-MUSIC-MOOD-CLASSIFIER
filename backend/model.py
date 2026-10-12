@@ -1,238 +1,114 @@
+
 import os
+import gc
 import joblib
 import numpy as np
 import librosa
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH = os.path.join(BASE_DIR, "mood_model.pkl")
 
-# ==========================================
-# MODEL PATH
-# ==========================================
-
-BASE_DIR = os.path.dirname(
-    os.path.dirname(
-        os.path.abspath(__file__)
-    )
-)
-
-MODEL_PATH = os.path.join(
-    BASE_DIR,
-    "mood_model.pkl"
-)
-
-
-print("==========================================")
-print("Loading AI Music Mood Classifier Model...")
-print("Model Path:", MODEL_PATH)
-print("==========================================")
-
-
-# ==========================================
-# LOAD TRAINED MODEL
-# ==========================================
-
-if not os.path.exists(MODEL_PATH):
-    raise FileNotFoundError(
-        f"Trained model not found: {MODEL_PATH}"
-    )
-
+if not os.path.isfile(MODEL_PATH):
+    raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
 
 model = joblib.load(MODEL_PATH)
+print("Random Forest model loaded successfully!", flush=True)
 
-
-print("Random Forest model loaded successfully!")
-print("==========================================")
-
-
-# ==========================================
-# FEATURE EXTRACTION
-# ==========================================
 
 def extract_ml_features(file_path):
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(f"Audio file not found: {file_path}")
 
-    # Load audio
-    y, sr = librosa.load(
-    file_path,
-    sr=22050,
-    mono=True,
-    duration=15,
-    res_type="kaiser_fast"
-)
+    y = None
+    mfcc = chroma = rms = zcr = None
 
-    if len(y) == 0:
-        raise ValueError(
-            "Audio file is empty."
+    try:
+        y, sr = librosa.load(
+            file_path,
+            sr=22050,
+            mono=True,
+            duration=15,
+            res_type="kaiser_fast",
+            dtype=np.float32,
         )
 
-    # ======================================
-    # MFCC - 13 FEATURES
-    # ======================================
+        if y.size == 0:
+            raise ValueError("Audio file is empty or invalid.")
 
-    mfcc = librosa.feature.mfcc(
-        y=y,
-        sr=sr,
-        n_mfcc=13
-    )
+        mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
+        mfcc_mean = np.mean(mfcc, axis=1)
 
-    mfcc_mean = np.mean(
-        mfcc,
-        axis=1
-    )
+        chroma = librosa.feature.chroma_stft(y=y, sr=sr)
+        chroma_mean = np.mean(chroma, axis=1)
 
-    # ======================================
-    # CHROMA - 12 FEATURES
-    # ======================================
+        rms = librosa.feature.rms(y=y)
+        rms_mean = float(np.mean(rms))
 
-    chroma = librosa.feature.chroma_stft(
-        y=y,
-        sr=sr
-    )
+        zcr = librosa.feature.zero_crossing_rate(y=y)
+        zcr_mean = float(np.mean(zcr))
 
-    chroma_mean = np.mean(
-        chroma,
-        axis=1
-    )
-
-    # ======================================
-    # RMS - 1 FEATURE
-    # ======================================
-
-    rms = librosa.feature.rms(
-        y=y
-    )
-
-    rms_mean = float(
-        np.mean(rms)
-    )
-
-    # ======================================
-    # ZERO CROSSING RATE - 1 FEATURE
-    # ======================================
-
-    zcr = librosa.feature.zero_crossing_rate(
-        y
-    )
-
-    zcr_mean = float(
-        np.mean(zcr)
-    )
-
-    # ======================================
-    # COMBINE 27 FEATURES
-    # ======================================
-
-    features = np.concatenate(
-        [
+        features = np.concatenate([
             mfcc_mean,
             chroma_mean,
-            [
-                rms_mean,
-                zcr_mean
-            ]
-        ]
-    )
+            [rms_mean, zcr_mean],
+        ]).astype(np.float32)
 
-    # ======================================
-    # VALIDATE FEATURES
-    # ======================================
-
-    if len(features) != 27:
-        raise ValueError(
-            f"Expected 27 features, "
-            f"got {len(features)}"
-        )
-
-    return features
-
-
-# ==========================================
-# PREDICT MOOD FROM AUDIO FILE
-# ==========================================
-
-def predict_mood_from_file(file_path):
-
-    # ======================================
-    # EXTRACT 27 ML FEATURES
-    # ======================================
-
-    features = extract_ml_features(
-        file_path
-    )
-
-    # Convert to 2D array
-    features = features.reshape(
-        1,
-        -1
-    )
-
-    # ======================================
-    # PREDICTION
-    # ======================================
-
-    prediction = model.predict(
-        features
-    )[0]
-
-    # ======================================
-    # CONFIDENCE + PROBABILITIES
-    # ======================================
-
-    confidence = 0
-    probabilities_dict = {}
-
-    if hasattr(
-        model,
-        "predict_proba"
-    ):
-
-        probabilities = model.predict_proba(
-            features
-        )[0]
-
-        classes = model.classes_
-
-        for class_name, probability in zip(
-            classes,
-            probabilities
-        ):
-
-            probabilities_dict[
-                str(class_name).capitalize()
-            ] = round(
-                float(probability) * 100,
-                2
+        if features.shape != (27,):
+            raise ValueError(
+                f"Expected 27 features, got {features.shape}"
             )
 
-        confidence = round(
-            float(
-                np.max(probabilities)
-            ) * 100
+        if not np.all(np.isfinite(features)):
+            raise ValueError("Invalid audio feature values.")
+
+        return features
+
+    finally:
+        y = None
+        mfcc = chroma = rms = zcr = None
+        gc.collect()
+
+
+def predict_mood_from_file(file_path):
+    features = None
+    feature_array = None
+    probabilities = None
+
+    try:
+        features = extract_ml_features(file_path)
+        feature_array = features.reshape(1, -1)
+
+        prediction = model.predict(feature_array)[0]
+        confidence = 0
+        probabilities_dict = {}
+
+        if hasattr(model, "predict_proba"):
+            probabilities = model.predict_proba(feature_array)[0]
+
+            for class_name, probability in zip(
+                model.classes_, probabilities
+            ):
+                probabilities_dict[str(class_name).capitalize()] = round(
+                    float(probability) * 100, 2
+                )
+
+            confidence = round(float(np.max(probabilities)) * 100)
+
+        intensity = (
+            "High" if confidence >= 85
+            else "Medium" if confidence >= 70
+            else "Low"
         )
 
-    # ======================================
-    # INTENSITY
-    # ======================================
+        return {
+            "mood": str(prediction).capitalize(),
+            "confidence": confidence,
+            "intensity": intensity,
+            "probabilities": probabilities_dict,
+        }
 
-    if confidence >= 85:
-        intensity = "High"
-
-    elif confidence >= 70:
-        intensity = "Medium"
-
-    else:
-        intensity = "Low"
-
-    # ======================================
-    # FINAL RESULT
-    # ======================================
-
-    return {
-        "mood": str(
-            prediction
-        ).capitalize(),
-
-        "confidence": confidence,
-
-        "intensity": intensity,
-
-        "probabilities": probabilities_dict
-    }
+    finally:
+        features = None
+        feature_array = None
+        probabilities = None
+        gc.collect()

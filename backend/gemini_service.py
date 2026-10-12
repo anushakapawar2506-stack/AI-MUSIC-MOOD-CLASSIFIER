@@ -1,23 +1,95 @@
-﻿from dotenv import load_dotenv
+﻿
 import os
+import gc
+import logging
+from pathlib import Path
 
+from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from rag_service import retrieve_music_knowledge
+# Support both package and direct-module imports
+try:
+    from backend.rag_service import retrieve_music_knowledge
+except ImportError:
+    from rag_service import retrieve_music_knowledge
 
-load_dotenv()
 
-API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+# ==========================================
+# CONFIGURATION
+# ==========================================
 
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = BASE_DIR.parent
 
-llm = ChatGoogleGenerativeAI(
-    model="gemini-3.5-flash-lite",
-    google_api_key=API_KEY,
-    max_retries=0,
-    timeout=20
+# Load environment files if available.
+# Production environment variables are read directly from os.environ.
+load_dotenv(PROJECT_DIR / ".env", override=False)
+load_dotenv(BASE_DIR / ".env", override=False)
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Read environment variable NAMES, not the API key itself.
+API_KEY = (
+    os.getenv("GEMINI_API_KEY")
+    or os.getenv("GOOGLE_API_KEY")
 )
 
+llm = None
 
+
+# ==========================================
+# INITIALIZE GEMINI
+# ==========================================
+
+if API_KEY:
+    try:
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-3.5-flash-lite",
+            google_api_key=API_KEY,
+            temperature=0.3,
+            max_retries=1,
+            timeout=20,
+        )
+
+        logger.info("Gemini client initialized successfully.")
+
+    except Exception:
+        logger.exception("Gemini initialization failed.")
+        llm = None
+else:
+    logger.warning(
+        "Gemini API key missing. Fallback explanation will be used."
+    )
+
+
+# ==========================================
+# FALLBACK EXPLANATION
+# ==========================================
+
+def fallback_explanation(
+    mood,
+    confidence,
+    intensity,
+    tempo,
+    rms,
+    zcr,
+    centroid,
+):
+    return (
+        f"The song is classified as {mood} with "
+        f"{confidence}% confidence. "
+        f"Its intensity is {intensity} and its tempo is "
+        f"{tempo} BPM. "
+        f"Its RMS energy is {rms}, and its zero crossing rate "
+        f"is {zcr}. "
+        f"The spectral centroid is {centroid}."
+    )
+
+
+# ==========================================
+# GENERATE MOOD EXPLANATION
+# ==========================================
 
 def generate_mood_explanation(
     mood,
@@ -26,39 +98,42 @@ def generate_mood_explanation(
     tempo,
     rms,
     zcr,
-    centroid
+    centroid,
 ):
+    rag_context = ""
+
     try:
+        if llm is None:
+            raise RuntimeError("Gemini client is unavailable.")
 
-        # ==========================================
-        # RAG KNOWLEDGE RETRIEVAL
-        # ==========================================
+        # Retrieve relevant music knowledge using RAG
+        try:
+            query = (
+                f"Explain the musical characteristics associated "
+                f"with the {mood} mood."
+            )
 
-        query = f"""
-        Explain the music mood {mood}.
-        What musical characteristics support this mood?
-        """
+            retrieved = retrieve_music_knowledge(query)
+            rag_context = str(retrieved or "")[:1500]
 
-        rag_context = retrieve_music_knowledge(query)
+        except Exception:
+            logger.exception("RAG retrieval failed.")
+            rag_context = ""
 
-        if not rag_context:
-            rag_context = "No additional music knowledge was retrieved."
-
-
-        # ==========================================
-        # GEMINI PROMPT
-        # ==========================================
-
+        # Prepare the prompt
         prompt = f"""
 You are an AI Music Mood Analysis Assistant.
 
-Use the retrieved music knowledge below together with the
-audio analysis features to explain the predicted mood.
+Explain the predicted mood in simple English.
+Give exactly four short sentences.
+Use the supplied values accurately.
+Do not invent audio features.
+Do not claim the prediction is always correct.
 
-Retrieved Music Knowledge:
+Relevant music knowledge:
 {rag_context}
 
-Music Analysis:
+Audio analysis:
 Mood: {mood}
 Confidence: {confidence}%
 Intensity: {intensity}
@@ -66,44 +141,45 @@ Tempo: {tempo} BPM
 RMS Energy: {rms}
 Zero Crossing Rate: {zcr}
 Spectral Centroid: {centroid}
-
-Instructions:
-- Explain why the song received this mood.
-- Connect the audio features with the retrieved music knowledge.
-- Use simple English.
-- Give only 4 short sentences.
-- Do not invent audio features.
 """
 
+        # Call Gemini
         response = llm.invoke(prompt)
+        content = getattr(response, "content", response)
 
-        if hasattr(response, "content"):
-            content = response.content
+        # Handle text and list-based responses
+        if isinstance(content, list):
+            parts = []
 
-            if isinstance(content, list):
-                text_parts = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    text_part = item.get("text")
+                    if text_part:
+                        parts.append(str(text_part))
 
-                for item in content:
-                    if isinstance(item, dict) and "text" in item:
-                        text_parts.append(item["text"])
-                    elif isinstance(item, str):
-                        text_parts.append(item)
+            content = " ".join(parts)
 
-                return " ".join(text_parts).strip()
+        result = str(content).strip()
 
-            return str(content).strip()
+        if result:
+            return result
 
-        return str(response).strip()
+        raise ValueError("Gemini returned an empty explanation.")
 
+    except Exception:
+        logger.exception("Gemini/RAG explanation failed.")
 
-    except Exception as e:
-
-        print("Gemini/RAG explanation error:", e)
-
-        # Safe fallback
-        return (
-            f"The song is classified as {mood} with {confidence}% confidence. "
-            f"Its intensity is {intensity} and its tempo is {tempo} BPM. "
-            f"The RMS energy is {rms}, indicating the overall energy level of the audio. "
-            f"The spectral features support the predicted {mood} mood."
+        return fallback_explanation(
+            mood,
+            confidence,
+            intensity,
+            tempo,
+            rms,
+            zcr,
+            centroid,
         )
+
+    finally:
+        gc.collect()
