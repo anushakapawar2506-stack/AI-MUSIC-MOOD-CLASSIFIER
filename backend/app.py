@@ -19,9 +19,13 @@ try:
         delete_prediction,
         clear_predictions,
         save_feedback,
+        create_users_table,
+        register_user,
+        authenticate_user,
     )
     from backend.model import predict_mood_from_file
     from backend.gemini_service import generate_mood_explanation
+
 except ModuleNotFoundError as exc:
     if not exc.name or not (
         exc.name == "backend" or exc.name.startswith("backend.")
@@ -35,6 +39,9 @@ except ModuleNotFoundError as exc:
         delete_prediction,
         clear_predictions,
         save_feedback,
+        create_users_table,
+        register_user,
+        authenticate_user,
     )
     from model import predict_mood_from_file
     from gemini_service import generate_mood_explanation
@@ -47,22 +54,20 @@ except ModuleNotFoundError as exc:
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Set this environment variable if your frontend uses
-# a custom domain or a different hosting provider.
 configured_origins = os.getenv("FRONTEND_ORIGINS", "")
 
 FRONTEND_ORIGINS = [
+    "https://ai-music-mood-frontend.onrender.com",
     "https://ai-music-mood-classifier-frontend.onrender.com",
     "http://localhost:5173",
 ]
 
 FRONTEND_ORIGINS.extend(
-    origin.strip()
+    origin.strip().rstrip("/")
     for origin in configured_origins.split(",")
     if origin.strip()
 )
 
-# Remove duplicates while preserving order.
 FRONTEND_ORIGINS = list(dict.fromkeys(FRONTEND_ORIGINS))
 
 CORS(
@@ -106,7 +111,13 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 ALLOWED_EXTENSIONS = {"mp3", "wav", "ogg", "m4a", "flac"}
 
+
+# ==================================================
+# DATABASE INITIALIZATION
+# ==================================================
+
 create_history_table()
+create_users_table()
 
 
 # ==================================================
@@ -249,6 +260,104 @@ def health():
 
 
 # ==================================================
+# REGISTER
+# ==================================================
+
+@app.route("/register", methods=["POST"])
+def register():
+    try:
+        data = request.get_json(silent=True) or {}
+
+        name = data.get("name", "")
+        email = data.get("email", "")
+        password = data.get("password", "")
+
+        if not all(
+            isinstance(value, str)
+            for value in (name, email, password)
+        ):
+            return error_response("Invalid registration data.", 400)
+
+        name = name.strip()
+        email = email.strip().lower()
+
+        if not name or not email or not password:
+            return error_response("Please fill all fields.", 400)
+
+        if len(password) < 8:
+            return error_response(
+                "Password must contain at least 8 characters.", 400
+            )
+
+        if len(name) > 150 or len(email) > 255:
+            return error_response(
+                "Name or email is too long.", 400
+            )
+
+        if "@" not in email or "." not in email.rsplit("@", 1)[-1]:
+            return error_response("Please enter a valid email.", 400)
+
+        user = register_user(name, email, password)
+
+        return jsonify({
+            "success": True,
+            "message": "Registration successful.",
+            "user": user,
+        }), 201
+
+    except ValueError as exc:
+        return error_response(str(exc), 400)
+
+    except Exception:
+        app.logger.exception("Registration failed")
+        return error_response(
+            "Registration failed. Please try again.",
+            500,
+        )
+
+
+# ==================================================
+# LOGIN
+# ==================================================
+
+@app.route("/login", methods=["POST"])
+def login():
+    try:
+        data = request.get_json(silent=True) or {}
+
+        email = data.get("email", "")
+        password = data.get("password", "")
+
+        if not isinstance(email, str) or not isinstance(password, str):
+            return error_response("Invalid login data.", 400)
+
+        if not email.strip() or not password:
+            return error_response(
+                "Please enter email and password.", 400
+            )
+
+        user = authenticate_user(email, password)
+
+        if user is None:
+            return error_response(
+                "Invalid email or password.", 401
+            )
+
+        return jsonify({
+            "success": True,
+            "message": "Login successful.",
+            "user": user,
+        }), 200
+
+    except Exception:
+        app.logger.exception("Login failed")
+        return error_response(
+            "Login failed. Please try again.",
+            500,
+        )
+
+
+# ==================================================
 # AUDIO FILE SERVING
 # ==================================================
 
@@ -276,8 +385,6 @@ def mood_prediction():
         app.logger.info("Analyzing uploaded audio: %s", filename)
 
         features = extract_audio_features(file_path)
-
-        # Keep the existing trained Random Forest model.
         model_result = predict_mood_from_file(file_path)
 
         mood = model_result["mood"]
