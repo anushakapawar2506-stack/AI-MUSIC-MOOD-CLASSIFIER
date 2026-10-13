@@ -6,7 +6,7 @@ import axios from "axios";
 // Render Backend URL
 
 
-const API_URL = "https://ai-music-mood-backend.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL || "https://ai-music-mood-backend-anushka.onrender.com";
 
 function Upload() {
   const [file, setFile] = useState(null);
